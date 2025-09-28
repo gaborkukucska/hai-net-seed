@@ -102,13 +102,62 @@ This file tracks the core functions/methods defined within the framework, catego
 
 ---
 
+## Networking System
+
+### core/network/discovery.py
+
+**Classes:**
+- `[core/network/discovery.py]::[NetworkNode] - Represents a discovered HAI-Net node with trust metrics`
+- `[core/network/discovery.py]::[ConstitutionalNetworkListener] - Service listener enforcing constitutional compliance`
+- `[core/network/discovery.py]::[LocalDiscovery] - mDNS-based local network discovery for HAI-Net nodes`
+
+**LocalDiscovery Methods:**
+- `[core/network/discovery.py]::[LocalDiscovery]::[__init__](settings, node_id, did) - Initialize discovery service`
+- `[core/network/discovery.py]::[LocalDiscovery]::[start_discovery]() - Start mDNS discovery service`
+- `[core/network/discovery.py]::[LocalDiscovery]::[stop_discovery]() - Stop discovery service`
+- `[core/network/discovery.py]::[LocalDiscovery]::[get_discovered_nodes](trusted_only) - Get list of discovered nodes`
+- `[core/network/discovery.py]::[LocalDiscovery]::[get_node_by_id](node_id) - Get specific node by ID`
+- `[core/network/discovery.py]::[LocalDiscovery]::[add_discovery_callback](callback) - Add callback for node discovery events`
+- `[core/network/discovery.py]::[LocalDiscovery]::[add_removal_callback](callback) - Add callback for node removal events`
+- `[core/network/discovery.py]::[LocalDiscovery]::[get_discovery_stats]() - Get discovery statistics`
+
+**Utility Functions:**
+- `[core/network/discovery.py]::[create_discovery_service](settings, node_id, did) - Create constitutional discovery service`
+
+### core/network/p2p.py
+
+**Classes:**
+- `[core/network/p2p.py]::[MessageType] - P2P message types enumeration`
+- `[core/network/p2p.py]::[P2PMessage] - Represents a P2P message with constitutional compliance`
+- `[core/network/p2p.py]::[PeerConnection] - Represents a connection to a peer`
+- `[core/network/p2p.py]::[P2PManager] - Constitutional P2P communication manager`
+
+**P2PManager Methods:**
+- `[core/network/p2p.py]::[P2PManager]::[__init__](settings, node_id, did) - Initialize P2P manager`
+- `[core/network/p2p.py]::[P2PManager]::[start_p2p_service]() - Start P2P communication service`
+- `[core/network/p2p.py]::[P2PManager]::[stop_p2p_service]() - Stop P2P communication service`
+- `[core/network/p2p.py]::[P2PManager]::[connect_to_peer](node) - Establish connection to peer node`
+- `[core/network/p2p.py]::[P2PManager]::[disconnect_from_peer](node_id) - Disconnect from specific peer`
+- `[core/network/p2p.py]::[P2PManager]::[send_message](receiver_id, message_type, content) - Send message to specific peer`
+- `[core/network/p2p.py]::[P2PManager]::[broadcast_message](message_type, content, trusted_only) - Broadcast message to all peers`
+- `[core/network/p2p.py]::[P2PManager]::[add_message_handler](message_type, handler) - Add custom message handler`
+- `[core/network/p2p.py]::[P2PManager]::[add_message_callback](callback) - Add message callback`
+- `[core/network/p2p.py]::[P2PManager]::[get_connection_stats]() - Get P2P connection statistics`
+
+**Utility Functions:**
+- `[core/network/p2p.py]::[create_p2p_manager](settings, node_id, did) - Create constitutional P2P manager`
+
+---
+
 ## Constitutional Framework Status
 
-**Implemented Components (Phase 0, Week 1):**
+**Implemented Components (Phase 0, Week 1-2):**
 - ✅ Identity System with DID generation (Argon2id)
 - ✅ Constitutional compliance testing framework
 - ✅ Configuration management with constitutional validation
 - ✅ Logging system with constitutional audit trail
+- ✅ **Networking Foundation with mDNS discovery and P2P communication**
+- ✅ **Constitutional trust model for network nodes**
 - ✅ Privacy-first data handling
 - ✅ Watermarking for AI-generated content
 - ✅ Constitutional violation detection and educational correction
@@ -116,8 +165,8 @@ This file tracks the core functions/methods defined within the framework, catego
 **Constitutional Principles Enforced:**
 - ✅ Article I: Privacy First Principle
 - ✅ Article II: Human Rights Protection
-- ✅ Article III: Decentralization Imperative
-- ✅ Article IV: Community Focus Principle
+- ✅ Article III: Decentralization Imperative (enhanced with networking)
+- ✅ Article IV: Community Focus Principle (enhanced with P2P)
 - ✅ Article V: Constitutional Enforcement
 - ✅ Article VII: Implementation Requirements
 
