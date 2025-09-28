@@ -1,0 +1,53 @@
+# HAI-Net Core Dependencies
+# Python 3.9+ required
+
+# Web Framework & APIs
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==12.0
+python-multipart==0.0.6
+
+# AI & ML
+torch>=2.0.0
+transformers>=4.35.0
+ollama>=0.1.7
+openai-whisper>=20231117
+TTS>=0.20.0
+
+# Cryptography & Security
+cryptography>=41.0.0
+argon2-cffi>=23.1.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Networking & P2P
+libp2p>=0.2.0
+zeroconf>=0.131.0
+python-libp2p>=0.2.0
+
+# Database & Storage
+sqlalchemy>=2.0.0
+sqlite3
+redis>=5.0.0
+qdrant-client>=1.6.0
+ipfshttpclient>=0.8.0
+
+# System & Utilities
+psutil>=5.9.0
+GPUtil>=1.4.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+click>=8.1.0
+rich>=13.7.0
+
+# Development & Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+# Optional GPU acceleration
+# torch-audio  # Uncomment if using GPU for audio processing
+# accelerate   # Uncomment for faster model loading
