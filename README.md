@@ -1,2 +1,1 @@
-# hai-net-seed
-HAI-Net
+# HAI-Net Seed
