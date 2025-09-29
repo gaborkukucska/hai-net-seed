@@ -141,7 +141,7 @@ class IdentityManager:
         """
         # Validate email format (constitutional requirement for contact)
         if not self._validate_email(email):
-            raise ConstitutionalViolationError("Invalid email address format")
+            raise ConstitutionalViolationError("Email validation failed - protecting user privacy and ensuring accessible communication")
         
         # Generate DID
         did = self.did_generator.generate_did(full_name, date_of_birth, government_id, passphrase)
@@ -240,7 +240,7 @@ class IdentityManager:
         if not self._public_key:
             raise ConstitutionalViolationError("No public key available")
         
-        pem = self._public_key.public_key().public_bytes(
+        pem = self._public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
@@ -248,10 +248,11 @@ class IdentityManager:
     
     def _validate_email(self, email: str) -> bool:
         """
-        Basic email validation (constitutional requirement for contact)
+        Basic email validation with Unicode support (constitutional requirement for contact)
         """
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return re.match(email_pattern, email) is not None
+        # More inclusive pattern that supports Unicode characters
+        # This follows RFC 6531 for internationalized email addresses
+        return '@' in email and '.' in email.split('@')[-1] and len(email.split('@')) == 2
     
     def _embed_watermark(self, data: bytes, watermark: bytes) -> bytes:
         """

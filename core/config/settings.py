@@ -5,7 +5,7 @@ Constitutional compliance and secure configuration
 """
 
 from typing import Dict, Any, Optional, List
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 import os
 from pathlib import Path
@@ -92,7 +92,7 @@ class HAINetSettings(BaseSettings):
     performance_monitoring: bool = Field(default=True, description="Performance monitoring enabled")
     telemetry_enabled: bool = Field(default=False, description="Telemetry data collection")
     
-    @validator('node_role')
+    @field_validator('node_role')
     def validate_node_role(cls, v):
         """Validate node role according to constitutional principles"""
         valid_roles = ['master', 'slave']
@@ -100,7 +100,7 @@ class HAINetSettings(BaseSettings):
             raise ValueError(f"Node role must be one of {valid_roles}")
         return v
     
-    @validator('guardian_mode')
+    @field_validator('guardian_mode')
     def validate_guardian_mode(cls, v):
         """Validate guardian mode settings"""
         valid_modes = ['educational', 'protective', 'emergency']
@@ -108,7 +108,7 @@ class HAINetSettings(BaseSettings):
             raise ValueError(f"Guardian mode must be one of {valid_modes}")
         return v
     
-    @validator('log_level')
+    @field_validator('log_level')
     def validate_log_level(cls, v):
         """Validate logging level"""
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
@@ -116,16 +116,14 @@ class HAINetSettings(BaseSettings):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return v.upper()
     
-    @validator('data_sharing_consent')
-    def validate_privacy_first(cls, v, values):
+    @field_validator('data_sharing_consent')
+    def validate_privacy_first(cls, v):
         """Enforce Privacy First constitutional principle"""
         # Data sharing consent must be explicitly granted, never default to True
-        if v and 'constitutional_version' in values:
-            # This is acceptable as user has explicitly consented
-            pass
+        # This is acceptable as user has explicitly consented
         return v
     
-    @validator('central_authority_disabled')
+    @field_validator('central_authority_disabled')
     def validate_decentralization(cls, v):
         """Enforce Decentralization constitutional principle"""
         if not v:
