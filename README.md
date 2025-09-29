@@ -85,26 +85,69 @@ HAI-Net is built on **four immutable constitutional principles**:
 ## 📖 Quick Start
 
 ### **Prerequisites**
-- Python 3.9+
+- Python 3.9+ (3.12 recommended)
 - Git
+- Node.js 16+ (for React frontend)
 
 ### **Installation**
+
+#### **1. Clone and Setup**
 ```bash
 # Clone the repository
 git clone https://github.com/gaborkukucska/hai-net-seed.git
 cd hai-net-seed
+```
 
-# Install dependencies
-pip install -r requirements.txt
+#### **2. Python Backend Setup**
+```bash
+# Create virtual environment (required for externally managed Python)
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # On Linux/macOS
+# OR
+venv\Scripts\activate     # On Windows
+
+# Install essential dependencies for testing
+pip install pytest pytest-asyncio pydantic cryptography argon2-cffi pyyaml pydantic-settings
 
 # Run constitutional compliance tests
-python -m pytest tests/ -v
+python -m pytest tests/test_constitutional_compliance.py -v
+```
 
-# Test core systems
+#### **3. React Frontend Setup**
+```bash
+# Install React dependencies
+cd web
+npm install
+cd ..
+```
+
+#### **4. Test Core Systems**
+```bash
+# Activate virtual environment if not already active
+source venv/bin/activate
+
+# Test individual components
 python core/identity/did.py
 python core/config/config_manager.py
 python core/logging/logger.py
 ```
+
+### **Expected Test Output**
+```bash
+✅ Privacy First Principle: Verified
+✅ Human Rights Protection: Verified  
+✅ Decentralization Imperative: Verified
+✅ Community Focus Principle: Verified
+🎉 HAI-Net is Constitutionally Compliant!
+```
+
+### **Troubleshooting**
+- **"externally-managed-environment" error**: Use virtual environment as shown above
+- **Missing modules**: Install additional dependencies as needed: `pip install <module-name>`
+- **Pydantic warnings**: These are deprecation warnings and don't affect functionality
+- **React build issues**: Ensure Node.js 16+ is installed
 
 ### **Create Your First Identity**
 ```python

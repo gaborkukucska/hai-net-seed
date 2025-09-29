@@ -456,3 +456,71 @@ coverage/
 # Large datasets
 datasets/
 training_data/
+
+# =============================================================================
+# Additional HAI-Net Specific Patterns
+# =============================================================================
+
+# Local development overrides
+local_config.yaml
+local_settings.py
+dev_config.json
+
+# Jupyter notebooks and lab
+.ipynb_checkpoints/
+.jupyter/
+*.ipynb
+
+# Local AI model downloads
+ollama_models/
+huggingface_cache/
+transformers_cache/
+
+# Local development databases
+*.db-journal
+*.db-wal
+*.db-shm
+local.db
+dev.db
+
+# Local file uploads and user data
+uploads/
+user_files/
+attachments/
+
+# Local development certificates
+localhost.crt
+localhost.key
+dev_cert.pem
+
+# IDE-specific project files
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Local environment variations
+.env.development
+.env.staging
+.env.test
+.env.production
+.env.override
+
+# System-specific ignore patterns
+.DS_Store?
+ehthumbs_vista.db
+[Tt]humbs.db
+*.tmp
+*.temp
+
+# HAI-Net specific runtime files
+hai-net-data/
+hai-net-logs/
+hai-net-config/
+.hai-net/
+
+# Local testing artifacts
+test_output/
+test_data/
+mock_data/
+sample_data/
