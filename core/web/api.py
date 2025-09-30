@@ -1,3 +1,4 @@
+# START OF FILE core/web/api.py
 # HAI-Net API Router - Constitutional REST API Endpoints
 # Provides RESTful API endpoints while maintaining constitutional compliance
 

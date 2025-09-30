@@ -1,3 +1,4 @@
+# START OF FILE core/identity/watermark.py
 """
 HAI-Net Watermark Management
 Constitutional compliance: Transparency for AI-generated content

@@ -1,3 +1,4 @@
+# START OF FILE core/identity/encryption.py
 """
 HAI-Net Identity Encryption Management
 Constitutional compliance: Privacy First encryption for identity operations

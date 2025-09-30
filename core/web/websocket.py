@@ -1,3 +1,4 @@
+# START OF FILE core/web/websocket.py
 # HAI-Net WebSocket Manager - Constitutional Real-Time Communication
 # Handles WebSocket connections for real-time updates while maintaining constitutional compliance
 
