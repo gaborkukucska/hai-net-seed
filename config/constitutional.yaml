@@ -1,0 +1,50 @@
+# HAI-Net Constitutional Configuration
+# This configuration enforces the four core constitutional principles
+
+constitutional_version: "1.0"
+generated_at: "2025-09-29T09:45:40Z"
+
+# Article I: Privacy First Principle
+privacy_first:
+  data_sharing_consent: false  # Default to no data sharing
+  analytics_consent: false     # No analytics without explicit consent
+  encryption_enabled: true     # Encryption at rest and in transit
+  watermarking_enabled: true   # AI content watermarking required
+  local_processing: true       # Process data locally when possible
+
+# Article II: Human Rights Protection  
+human_rights:
+  accessibility_mode: true     # Accessibility features enabled
+  bias_detection_enabled: true # AI bias detection active
+  user_override_enabled: true  # Users can override AI decisions
+  content_filtering_enabled: true # Harmful content filtering
+  educational_approach: true   # Educational error messages
+
+# Article III: Decentralization Imperative
+decentralization:
+  central_authority_disabled: true  # No central authority connections
+  local_first: true                # Local processing priority
+  mesh_networking_enabled: true    # P2P mesh networking
+  consensus_required: true         # Consensus for major changes
+  max_masters_per_network: 3       # Limit masters for true decentralization
+
+# Article IV: Community Focus Principle
+community_focus:
+  community_participation: true    # Enable community participation
+  resource_sharing_enabled: false  # Disabled by default (user choice)
+  environmental_mode: true         # Resource efficiency priority
+  irl_prioritization: true         # In-person interaction priority
+  collaborative_governance: true   # Community governance enabled
+
+# Constitutional Guardian Settings
+guardian:
+  enabled: true
+  mode: "educational"  # educational, protective, emergency
+  violation_reporting: true
+  auto_correction: true
+  
+# Node Configuration
+node:
+  role: "slave"  # Default to slave for decentralization
+  id: "2014-1759139140"
+  hub_name: "HAI-Net Local Hub"

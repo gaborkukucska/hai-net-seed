@@ -188,27 +188,107 @@ create_constitutional_environment() {
     # Upgrade pip for security
     pip install --upgrade pip
     
-    # Install Python dependencies
-    if [ -f "requirements.txt" ]; then
-        log_info "Installing Python dependencies..."
-        pip install -r requirements.txt
-        log_success "Python dependencies installed"
-    else
-        log_warning "requirements.txt not found. Installing core dependencies..."
-        pip install \
-            fastapi \
-            uvicorn \
-            pydantic \
-            pydantic-settings \
-            cryptography \
-            argon2-cffi \
-            requests \
-            psutil \
-            zeroconf \
-            netifaces \
-            pytest \
-            pytest-asyncio
+    # Check system AI capabilities before installing dependencies
+    log_info "Detecting system capabilities for optimal installation..."
+    
+    HAS_GPU=false
+    HAS_OLLAMA=false
+    PYTHON_VERSION_MAJOR=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1)
+    PYTHON_VERSION_MINOR=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f2)
+    
+    # Check for GPU (NVIDIA)
+    if command -v nvidia-smi &> /dev/null; then
+        GPU_COUNT=$(nvidia-smi --list-gpus | wc -l)
+        if [ "$GPU_COUNT" -gt 0 ]; then
+            HAS_GPU=true
+            log_success "GPU detected: $GPU_COUNT NVIDIA GPU(s)"
+        fi
+    elif lspci 2>/dev/null | grep -i vga | grep -i nvidia &> /dev/null; then
+        log_warning "NVIDIA GPU detected but nvidia-smi not available"
     fi
+    
+    # Check for Ollama
+    if command -v ollama &> /dev/null; then
+        HAS_OLLAMA=true
+        log_success "Ollama found: $(ollama --version 2>/dev/null || echo 'version unknown')"
+    elif curl -s --connect-timeout 2 http://localhost:11434/api/tags &> /dev/null; then
+        HAS_OLLAMA=true
+        log_success "Ollama server detected on localhost:11434"
+    fi
+    
+    # Check Python version compatibility for AI packages
+    PYTHON_AI_COMPATIBLE=true
+    if [ "$PYTHON_VERSION_MAJOR" -eq 3 ] && [ "$PYTHON_VERSION_MINOR" -ge 12 ]; then
+        PYTHON_AI_COMPATIBLE=false
+        log_warning "Python $PYTHON_VERSION_MAJOR.$PYTHON_VERSION_MINOR detected - some AI packages may be incompatible"
+    fi
+    
+    log_info "System capabilities detected:"
+    echo "  GPU: $HAS_GPU"
+    echo "  Ollama: $HAS_OLLAMA"
+    echo "  Python AI Compatible: $PYTHON_AI_COMPATIBLE"
+    echo ""
+    
+    # Install core dependencies (always needed)
+    log_info "Installing core HAI-Net dependencies..."
+    pip install \
+        fastapi==0.104.1 \
+        uvicorn[standard]==0.24.0 \
+        websockets==12.0 \
+        python-multipart==0.0.6 \
+        cryptography>=41.0.0 \
+        argon2-cffi>=23.1.0 \
+        python-jose[cryptography]==3.3.0 \
+        passlib[bcrypt]==1.7.4 \
+        zeroconf>=0.131.0 \
+        netifaces>=0.11.0 \
+        sqlalchemy>=2.0.0 \
+        psutil>=5.9.0 \
+        pydantic>=2.5.0 \
+        pydantic-settings>=2.0.0 \
+        python-dotenv>=1.0.0 \
+        click>=8.1.0 \
+        rich>=13.7.0 \
+        pyyaml>=6.0.0 \
+        pytest>=7.4.0 \
+        pytest-asyncio>=0.21.0 \
+        requests>=2.31.0 \
+        aiohttp>=3.8.0 \
+        numpy>=1.21.0
+    
+    if [ $? -eq 0 ]; then
+        log_success "Core dependencies installed successfully"
+    else
+        log_error "Failed to install core dependencies"
+        return 1
+    fi
+    
+    # Handle AI dependencies based on system capabilities
+    if [ "$HAS_OLLAMA" = true ]; then
+        log_success "External Ollama detected - skipping local AI installation for better compatibility"
+        log_info "HAI-Net will connect to your existing Ollama server"
+    elif [ "$PYTHON_AI_COMPATIBLE" = false ]; then
+        log_warning "Python version may be incompatible with some AI packages"
+        log_info "Using minimal AI setup - you can connect to external AI services"
+    else
+        read -p "Install additional AI dependencies? (may cause compatibility issues on some systems) (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Installing optional AI dependencies..."
+            log_warning "This may fail on some systems - core functionality will work regardless"
+            
+            # Try to install AI packages individually to avoid complete failure
+            pip install transformers>=4.35.0 || log_warning "transformers installation failed"
+            
+            # Skip problematic packages that caused the original error
+            log_info "Skipping TTS and torch due to compatibility issues on older systems"
+            log_info "You can install these manually later if needed"
+        else
+            log_info "Skipping AI dependencies - using minimal installation"
+        fi
+    fi
+    
+    log_success "Python dependencies installation complete"
     
     # Verify constitutional compliance imports
     python3 -c "
@@ -559,11 +639,27 @@ main() {
         create_systemd_service
     fi
     
-    read -p "Run constitutional compliance tests? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        run_constitutional_tests
+    # Run constitutional compliance tests automatically (required for installation)
+    log_constitutional "Running essential constitutional compliance verification..."
+    source venv/bin/activate
+    
+    # Run constitutional compliance tests (core requirement)
+    if [ -f "tests/test_constitutional_compliance.py" ]; then
+        log_info "Running constitutional compliance test suite..."
+        python -m pytest tests/test_constitutional_compliance.py -v --tb=short
+        
+        if [ $? -eq 0 ]; then
+            log_success "All constitutional compliance tests passed!"
+        else
+            log_warning "Some constitutional compliance tests failed - continuing installation"
+            log_info "You can run tests manually later with: python -m pytest tests/test_constitutional_compliance.py -v"
+        fi
+    else
+        log_info "Constitutional compliance tests not found - skipping"
     fi
+    
+    # Skip integration tests during installation (can hang on some systems)
+    log_info "Skipping integration tests during installation (run manually with ./launch.sh --test)"
     
     create_desktop_launcher
     generate_quick_start
@@ -578,10 +674,36 @@ main() {
     log_constitutional "Remember: Your data stays local, you maintain control"
     echo ""
     
-    # Show quick start command
-    echo -e "${CYAN}Quick start:${NC}"
-    echo "  source venv/bin/activate"
-    echo "  python -m core.web.server"
+    # Show improved quick start and auto-launch option
+    echo -e "${CYAN}Quick start options:${NC}"
+    echo "  ./launch.sh --dev    # Interactive development mode"
+    echo "  ./launch.sh --docker # Production Docker mode"
+    echo "  ./launch.sh          # Interactive launcher menu"
+    echo ""
+    
+    # Ask if user wants to launch immediately
+    read -p "Launch HAI-Net now? (Y/n): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        log_success "Launching HAI-Net in development mode..."
+        echo ""
+        
+        # Try to open browser automatically
+        if command -v xdg-open &> /dev/null; then
+            log_info "Opening web interface in browser..."
+            (sleep 3 && xdg-open http://localhost:8080) &
+        elif command -v open &> /dev/null; then
+            log_info "Opening web interface in browser..."
+            (sleep 3 && open http://localhost:8080) &
+        else
+            log_info "Web interface will be available at: http://localhost:8080"
+        fi
+        
+        # Launch with the launch script
+        ./launch.sh --dev
+    else
+        log_info "HAI-Net ready to launch! Use: ./launch.sh"
+    fi
     echo ""
 }
 
