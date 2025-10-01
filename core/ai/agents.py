@@ -21,10 +21,7 @@ from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
 from .llm import LLMManager, LLMMessage, LLMResponse
 
-# Forward declarations for type hinting
-class AgentManager;
-class AgentCycleHandler;
-class WorkflowManager;
+# Forward declarations are handled by using string type hints
 
 
 class AgentState(Enum):
@@ -138,7 +135,7 @@ class Agent:
     """
     
     def __init__(self, agent_id: str, role: AgentRole, settings: HAINetSettings,
-                 manager: AgentManager,
+                 manager: 'AgentManager',
                  llm_manager: Optional[LLMManager] = None,
                  user_did: Optional[str] = None):
         self.agent_id = agent_id
@@ -493,8 +490,8 @@ class AgentManager:
         self.logger = get_logger("ai.agent.manager", settings)
         
         # Core Components (will be initialized later)
-        self.cycle_handler: Optional[AgentCycleHandler] = None
-        self.workflow_manager: Optional[WorkflowManager] = None
+        self.cycle_handler: Optional['AgentCycleHandler'] = None
+        self.workflow_manager: Optional['WorkflowManager'] = None
 
         # Agent management
         self.agents: Dict[str, Agent] = {}
@@ -515,7 +512,7 @@ class AgentManager:
         # Thread safety
         self._lock = asyncio.Lock()
 
-    def set_handlers(self, cycle_handler: AgentCycleHandler, workflow_manager: WorkflowManager):
+    def set_handlers(self, cycle_handler: 'AgentCycleHandler', workflow_manager: 'WorkflowManager'):
         """Set the core handlers after initialization."""
         self.cycle_handler = cycle_handler
         self.workflow_manager = workflow_manager
