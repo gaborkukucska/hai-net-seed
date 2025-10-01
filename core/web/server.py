@@ -319,8 +319,9 @@ class WebServer:
                     return templates.TemplateResponse("index.html", {"request": request})
             
         except Exception as e:
-            self.logger.warning(f"Static files setup failed: {e}")
-    
+            # Log the specific error but continue, as the server can run without the frontend.
+            self.logger.warning(f"Static files or Jinja2 templates setup failed: {e}. The API will still be available.")
+
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: str):
         """Handle WebSocket connection with constitutional compliance"""
         await websocket.accept()

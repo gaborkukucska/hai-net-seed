@@ -611,14 +611,14 @@ class LLMDiscovery:
             
             # Prepare service properties
             properties = {
-                "provider": b"ollama",
-                "constitutional_version": self.constitutional_version.encode(),
-                "node_id": self.node_id.encode(),
-                "models": json.dumps(ollama_info["models"]).encode(),
-                "api_version": ollama_info.get("version", "unknown").encode(),
-                "health_endpoint": b"/api/tags",
-                "privacy_compliant": b"true",
-                "local_processing": b"true"
+                b"provider": b"ollama",
+                b"constitutional_version": self.constitutional_version.encode(),
+                b"node_id": self.node_id.encode(),
+                b"models": json.dumps(ollama_info["models"]).encode(),
+                b"api_version": ollama_info.get("version", "unknown").encode(),
+                b"health_endpoint": b"/api/tags",
+                b"privacy_compliant": b"true",
+                b"local_processing": b"true"
             }
             
             # Create service info
