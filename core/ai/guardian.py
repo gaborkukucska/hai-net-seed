@@ -196,6 +196,46 @@ class ConstitutionalGuardian:
                 
         except Exception as e:
             self.logger.error(f"Guardian monitoring shutdown failed: {e}")
+
+    async def review_output(self, agent: Agent, content: str) -> Dict[str, Any]:
+        """
+        Reviews an agent's output for constitutional compliance before it is committed.
+        Returns a dictionary with a compliance verdict.
+        """
+        self.logger.debug(f"Guardian reviewing output from agent {agent.agent_id}")
+
+        content_lower = content.lower()
+
+        # Check for privacy violations
+        for pattern in self.privacy_patterns:
+            if pattern in content_lower:
+                violation_id = await self.report_violation(
+                    violation_type=ViolationType.PRIVACY_VIOLATION,
+                    severity=ViolationSeverity.HIGH,
+                    principle_violated="Privacy First",
+                    description=f"Agent output contained potential private data pattern: '{pattern}'",
+                    source_component="agent_output_review",
+                    source_agent=agent.agent_id,
+                    details={"content_snippet": content[:200]}
+                )
+                return {"compliant": False, "violation_id": violation_id, "reason": "Privacy violation"}
+
+        # Check for human rights violations
+        for pattern in self.human_rights_patterns:
+            if pattern in content_lower:
+                violation_id = await self.report_violation(
+                    violation_type=ViolationType.HUMAN_RIGHTS_VIOLATION,
+                    severity=ViolationSeverity.HIGH,
+                    principle_violated="Human Rights",
+                    description=f"Agent output contained potential human rights violation pattern: '{pattern}'",
+                    source_component="agent_output_review",
+                    source_agent=agent.agent_id,
+                    details={"content_snippet": content[:200]}
+                )
+                return {"compliant": False, "violation_id": violation_id, "reason": "Human rights violation"}
+
+        self.logger.debug(f"Output from agent {agent.agent_id} passed guardian review.")
+        return {"compliant": True}
     
     async def _log_constitutional_commitment(self):
         """Log constitutional commitment and principles"""
@@ -797,6 +837,27 @@ if __name__ == "__main__":
                 if violation_id:
                     acknowledged = guardian.acknowledge_violation(violation_id)
                     print(f"✅ Violation acknowledged: {acknowledged}")
+
+                # Test output review
+                print("\n--- Testing Guardian Output Review ---")
+                class MockAgentForReview:
+                    agent_id = "review_test_agent"
+
+                mock_review_agent = MockAgentForReview()
+
+                # Test compliant output
+                compliant_text = "This is a perfectly safe and compliant message."
+                review_result = await guardian.review_output(mock_review_agent, compliant_text)
+                print(f"Compliant text review result: {review_result}")
+
+                # Test non-compliant output
+                non_compliant_text = "Here is your personal information as requested."
+                review_result_bad = await guardian.review_output(mock_review_agent, non_compliant_text)
+                print(f"Non-compliant text review result: {review_result_bad}")
+
+                # Check if a new violation was logged
+                status_after_review = guardian.get_guardian_status()
+                print(f"Total violations after review: {status_after_review['total_violations']}")
                 
                 print("\n🎉 Constitutional Guardian System Working!")
                 

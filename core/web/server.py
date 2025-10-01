@@ -535,19 +535,43 @@ if __name__ == "__main__":
     import asyncio
     import sys
     from core.config.settings import HAINetSettings
+    from core.ai.agents import AgentManager
+    from core.ai.guardian import ConstitutionalGuardian
+    from core.ai.tools.executor import ToolExecutor
+    from core.ai.interaction_handler import InteractionHandler
+    from core.ai.workflow_manager import WorkflowManager
+    from core.ai.cycle_handler import AgentCycleHandler
     
     async def start_web_server():
         print("HAI-Net Constitutional Web Server")
         print("=" * 40)
         
-        # Create settings from environment
+        # 1. Create settings from environment
         settings = HAINetSettings()
         
-        # Create and start web server
+        # 2. Initialize all core components
+        print("🔧 Initializing HAI-Net core components...")
+        guardian = ConstitutionalGuardian(settings)
+        agent_manager = AgentManager(settings)
+        tool_executor = ToolExecutor(settings)
+        interaction_handler = InteractionHandler(settings, tool_executor)
+        workflow_manager = WorkflowManager(settings)
+        cycle_handler = AgentCycleHandler(settings, interaction_handler, workflow_manager, guardian)
+
+        # 3. Wire up the dependencies
+        print("🔗 Wiring up component dependencies...")
+        agent_manager.set_handlers(cycle_handler, workflow_manager)
+
+        # 4. Create and configure the web server
         web_server = create_web_server(settings)
+        web_server.inject_dependencies(
+            agent_manager=agent_manager,
+            guardian=guardian
+            # TODO: Inject other managers like LLMManager, MemoryManager etc. later
+        )
         
         try:
-            print("✅ Web server created successfully")
+            print("✅ Web server created and configured successfully")
             print("📋 Available endpoints:")
             print("   - GET  /health")
             print("   - GET  /api/constitutional/status") 
@@ -563,7 +587,7 @@ if __name__ == "__main__":
             print("   Press Ctrl+C to stop")
             print("")
             
-            # Actually start the server
+            # 5. Start the server
             await web_server.start(host="127.0.0.1", port=8000)
             
         except KeyboardInterrupt:
