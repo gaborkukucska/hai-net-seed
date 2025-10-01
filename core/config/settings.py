@@ -49,10 +49,10 @@ class HAINetSettings(BaseSettings):
     irl_prioritization: bool = Field(default=True, description="In-person interaction priority")
     
     # Storage Paths
-    data_dir: Path = Field(default=Path.home() / "hai-net" / "data", description="Local data directory")
-    config_dir: Path = Field(default=Path.home() / "hai-net" / "config", description="Configuration directory")
-    logs_dir: Path = Field(default=Path.home() / "hai-net" / "logs", description="Logs directory")
-    models_dir: Path = Field(default=Path.home() / "hai-net" / "models", description="AI models directory")
+    data_dir: Path = Field(default=Path("data"), description="Local data directory")
+    config_dir: Path = Field(default=Path("config"), description="Configuration directory")
+    logs_dir: Path = Field(default=Path("logs"), description="Logs directory")
+    models_dir: Path = Field(default=Path("models"), description="AI models directory")
     
     # Network Configuration
     discovery_enabled: bool = Field(default=True, description="Local network discovery")

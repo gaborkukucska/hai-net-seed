@@ -159,6 +159,37 @@ This file tracks the core functions/methods defined within the framework, catego
 **Utility Functions:**
 - `[core/network/discovery.py]::[create_discovery_service](settings, node_id, did) - Create constitutional discovery service`
 
+### core/network/llm_discovery.py - **🧠 NEW: Network-Wide AI Discovery System**
+
+**Classes:**
+- `[core/network/llm_discovery.py]::[LLMNode] - Represents discovered AI service providers with constitutional compliance`
+- `[core/network/llm_discovery.py]::[ConstitutionalLLMListener] - mDNS listener for AI services with constitutional validation`
+- `[core/network/llm_discovery.py]::[LLMDiscovery] - **MAJOR**: Comprehensive AI service discovery across local networks`
+
+**LLMDiscovery Methods:**
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[__init__](settings, node_id) - Initialize AI discovery service`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[start_discovery]() - **NEW**: Start comprehensive AI discovery with mDNS + network scanning`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[stop_discovery]() - **NEW**: Graceful shutdown of all discovery services`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_start_network_scanning]() - **NEW**: Scans 800+ IPs across multiple network ranges`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_priority_scan_ollama](network_ranges) - **NEW**: High-speed priority scanning for Ollama services`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_get_comprehensive_network_ranges]() - **NEW**: Advanced network topology detection`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_scan_ai_service](ip, port, service_name) - **NEW**: Individual AI service scanning and validation`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_probe_ai_service](ip, port, service_name) - **NEW**: AI service type detection and capabilities assessment`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_parse_ai_service_response](ip, port, endpoint, content, service_name) - **NEW**: AI service response parsing and node creation`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_calculate_network_trust](ip) - **NEW**: Constitutional trust scoring for network services`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_perform_health_check](llm_node) - **NEW**: Continuous AI service health monitoring`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_register_local_ai_services]() - **NEW**: Register local AI services for discovery`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[_check_local_ollama]() - **NEW**: Detect and validate local Ollama installations`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[get_discovered_llm_nodes](trusted_only, healthy_only) - **NEW**: Retrieve discovered AI services with filtering`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[get_best_llm_node_for_model](model_name) - **NEW**: Intelligent AI service selection`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[get_available_models]() - **NEW**: Aggregate model availability across network`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[get_discovery_stats]() - **NEW**: Network AI discovery statistics and metrics`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[add_discovery_callback](callback) - **NEW**: Register callbacks for service discovery events`
+- `[core/network/llm_discovery.py]::[LLMDiscovery]::[add_removal_callback](callback) - **NEW**: Register callbacks for service removal events`
+
+**Utility Functions:**
+- `[core/network/llm_discovery.py]::[create_llm_discovery_service](settings, node_id) - **NEW**: Factory for AI discovery service`
+
 ### core/network/p2p.py
 
 **Classes:**

@@ -26,6 +26,7 @@ from core.identity.did import ConstitutionalViolationError
 from core.ai import LLMManager, AgentManager, ConstitutionalGuardian, MemoryManager
 from core.storage import DatabaseManager, VectorStore
 from core.network import LocalDiscovery, P2PManager, NetworkEncryption
+from core.network.llm_discovery import create_llm_discovery_service
 
 class WebServer:
     """
@@ -56,6 +57,7 @@ class WebServer:
         self.memory_manager: Optional[MemoryManager] = None
         self.database_manager: Optional[DatabaseManager] = None
         self.vector_store: Optional[VectorStore] = None
+        self.llm_discovery = None
         
         # WebSocket connections
         self.websocket_connections: Dict[str, WebSocket] = {}
@@ -418,8 +420,11 @@ class WebServer:
         )
     
     async def start(self, host: str = "127.0.0.1", port: int = 8000):
-        """Start the web server"""
+        """Start the web server with integrated AI discovery"""
         try:
+            # Start AI discovery service first
+            await self._start_ai_discovery()
+            
             self.logger.log_human_rights_event(
                 "web_server_starting",
                 user_control=True
@@ -439,10 +444,65 @@ class WebServer:
             
         except Exception as e:
             self.logger.error(f"Web server startup failed: {e}")
+            await self._graceful_shutdown()
             raise
+    
+    async def _start_ai_discovery(self):
+        """Start the AI discovery service"""
+        try:
+            # Create AI discovery service
+            node_id = f"hai-net-{int(time.time())}"
+            self.llm_discovery = create_llm_discovery_service(self.settings, node_id)
+            
+            # Start discovery
+            if await self.llm_discovery.start_discovery():
+                self.logger.info("🧠 AI discovery service started successfully")
+                # Log progress after brief delay
+                asyncio.create_task(self._log_discovery_progress())
+            else:
+                self.logger.error("Failed to start AI discovery service")
+                
+        except Exception as e:
+            self.logger.error(f"Error starting AI discovery: {e}")
+    
+    async def _log_discovery_progress(self):
+        """Log AI discovery progress"""
+        try:
+            await asyncio.sleep(8)  # Wait for discovery
+            
+            if self.llm_discovery:
+                nodes = self.llm_discovery.get_discovered_llm_nodes(trusted_only=False, healthy_only=False)
+                if nodes:
+                    self.logger.info(f"🎯 AI Discovery: Found {len(nodes)} services")
+                    for node in nodes:
+                        models_info = f"{len(node.available_models)} models" if node.available_models else "models unknown"
+                        self.logger.info(f"   🤖 {node.address}:{node.port} ({models_info})")
+                else:
+                    self.logger.info("🔍 AI Discovery: No services found")
+                    
+        except Exception as e:
+            self.logger.debug(f"Error logging discovery: {e}")
+    
+    async def _graceful_shutdown(self):
+        """Gracefully shutdown all services"""
+        try:
+            self.logger.info("🔄 Starting graceful shutdown...")
+            
+            # Stop AI discovery
+            if self.llm_discovery:
+                self.logger.info("🧠 Stopping AI discovery...")
+                await self.llm_discovery.stop_discovery()
+                self.logger.info("✅ AI discovery stopped")
+            
+            self.logger.info("✅ Graceful shutdown completed")
+            
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {e}")
     
     async def stop(self):
         """Stop the web server gracefully"""
+        await self._graceful_shutdown()
+        
         # Close all WebSocket connections
         for client_id in list(self.websocket_connections.keys()):
             try:

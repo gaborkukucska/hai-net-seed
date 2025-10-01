@@ -8,13 +8,15 @@ import logging
 import logging.handlers
 import json
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
 import hashlib
 import threading
 
-from core.config.settings import HAINetSettings
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from core.config.settings import HAINetSettings
 
 
 class ConstitutionalLogFilter(logging.Filter):
@@ -74,7 +76,7 @@ class HAINetLogger:
     Provides audit trail and privacy protection with categorized debug logging
     """
     
-    def __init__(self, name: str, settings: Optional[HAINetSettings] = None):
+    def __init__(self, name: str, settings: Optional[Any] = None):
         self.name = name
         self.settings = settings
         self.logger = logging.getLogger(name)
@@ -134,40 +136,72 @@ class HAINetLogger:
     
     def _setup_file_logging(self):
         """Set up file-based logging with rotation"""
-        logs_dir = self.settings.logs_dir
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Main log file
-        main_log = logs_dir / f"{self.name}.log"
-        file_handler = logging.handlers.RotatingFileHandler(
-            main_log,
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
-        )
-        file_handler.setLevel(logging.DEBUG)  # Capture everything in files
-        file_handler.addFilter(ConstitutionalLogFilter())
-        file_handler.setFormatter(ConstitutionalFormatter())
-        
-        self.logger.addHandler(file_handler)
-        
-        # Constitutional compliance log
-        compliance_log = logs_dir / "constitutional_compliance.log"
-        compliance_handler = logging.handlers.RotatingFileHandler(
-            compliance_log,
-            maxBytes=5*1024*1024,  # 5MB
-            backupCount=10
-        )
-        compliance_handler.setLevel(logging.INFO)
-        compliance_handler.addFilter(ConstitutionalLogFilter())
-        compliance_handler.setFormatter(ConstitutionalFormatter())
-        
-        # Only log constitutional events to compliance log
-        class ConstitutionalOnlyFilter(logging.Filter):
-            def filter(self, record):
-                return hasattr(record, 'constitutional_event')
-        
-        compliance_handler.addFilter(ConstitutionalOnlyFilter())
-        self.logger.addHandler(compliance_handler)
+        try:
+            # Determine logs directory
+            if self.settings and hasattr(self.settings, 'logs_dir'):
+                logs_dir = self.settings.logs_dir
+            else:
+                # Default logs directory for when settings object not available
+                logs_dir = Path("logs")
+            
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Check if file logging is enabled in settings.yaml
+            import yaml
+            settings_file = Path("settings.yaml")
+            file_logging_enabled = True  # Default to enabled
+            
+            if settings_file.exists():
+                try:
+                    with open(settings_file, 'r') as f:
+                        config = yaml.safe_load(f)
+                        file_logging_enabled = config.get('logging', {}).get('save_to_file', True)
+                except Exception:
+                    pass  # If we can't read the config, default to enabled
+            
+            if not file_logging_enabled:
+                return  # Skip file logging if disabled
+            
+            # Main log file
+            main_log = logs_dir / f"{self.name}.log"
+            file_handler = logging.handlers.RotatingFileHandler(
+                main_log,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(logging.DEBUG)  # Capture everything in files
+            file_handler.addFilter(ConstitutionalLogFilter())
+            file_handler.setFormatter(ConstitutionalFormatter())
+            
+            self.logger.addHandler(file_handler)
+            
+            # Log that file logging was successfully set up
+            print(f"✅ File logging enabled: {main_log}")
+            
+            # Constitutional compliance log
+            compliance_log = logs_dir / "constitutional_compliance.log"
+            compliance_handler = logging.handlers.RotatingFileHandler(
+                compliance_log,
+                maxBytes=5*1024*1024,  # 5MB
+                backupCount=10,
+                encoding='utf-8'
+            )
+            compliance_handler.setLevel(logging.INFO)
+            compliance_handler.addFilter(ConstitutionalLogFilter())
+            compliance_handler.setFormatter(ConstitutionalFormatter())
+            
+            # Only log constitutional events to compliance log
+            class ConstitutionalOnlyFilter(logging.Filter):
+                def filter(self, record):
+                    return hasattr(record, 'constitutional_event')
+            
+            compliance_handler.addFilter(ConstitutionalOnlyFilter())
+            self.logger.addHandler(compliance_handler)
+            
+        except Exception as e:
+            print(f"⚠️ File logging setup failed: {e}")
+            # Continue without file logging rather than crash
     
     def log_constitutional_event(self, event_type: str, details: Dict[str, Any], level: str = "INFO"):
         """
@@ -392,7 +426,7 @@ def set_default_settings(settings: Any):
     _default_settings = settings
 
 
-def get_logger(name: str, settings: Optional[HAINetSettings] = None) -> HAINetLogger:
+def get_logger(name: str, settings: Optional[Any] = None) -> HAINetLogger:
     """
     Get or create a HAI-Net logger with constitutional compliance
     
