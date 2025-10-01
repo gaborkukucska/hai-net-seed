@@ -17,7 +17,7 @@ import threading
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
-from .agents import Agent, AgentRole, AgentState, AgentTask, AgentCapability
+from .agents import Agent, AgentRole, AgentState, AgentCapability
 
 
 class ViolationType(Enum):

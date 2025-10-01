@@ -20,6 +20,7 @@ from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
 from .llm import LLMManager, LLMMessage, LLMResponse
+from .schemas import AgentMemory
 
 # Forward declarations are handled by using string type hints
 
@@ -55,32 +56,6 @@ class AgentCapability(Enum):
     MONITORING = "monitoring"
     COORDINATION = "coordination"
     COMPLIANCE_CHECK = "compliance_check"
-
-
-@dataclass
-class AgentMemory:
-    """Agent memory structure"""
-    short_term: Dict[str, Any]     # Current context and working memory
-    long_term: List[Dict[str, Any]]  # Persistent memories
-    episodic: List[Dict[str, Any]]   # Specific event memories
-    semantic: Dict[str, Any]         # Knowledge and facts
-    constitutional: Dict[str, Any]   # Constitutional compliance history
-    
-    def __post_init__(self):
-        if not self.short_term:
-            self.short_term = {}
-        if not self.long_term:
-            self.long_term = []
-        if not self.episodic:
-            self.episodic = []
-        if not self.semantic:
-            self.semantic = {}
-        if not self.constitutional:
-            self.constitutional = {
-                "violations": [],
-                "compliance_score": 1.0,
-                "last_check": time.time()
-            }
 
 
 @dataclass
