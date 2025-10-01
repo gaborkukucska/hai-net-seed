@@ -471,40 +471,48 @@ def create_web_server(settings: HAINetSettings) -> WebServer:
     return WebServer(settings)
 
 if __name__ == "__main__":
-    # Test the web server
+    # Actually start the web server
     import asyncio
+    import sys
     from core.config.settings import HAINetSettings
     
-    async def test_web_server():
-        print("HAI-Net Constitutional Web Server Test")
+    async def start_web_server():
+        print("HAI-Net Constitutional Web Server")
         print("=" * 40)
         
-        # Create test settings
+        # Create settings from environment
         settings = HAINetSettings()
         
-        # Create web server
+        # Create and start web server
         web_server = create_web_server(settings)
         
         try:
             print("✅ Web server created successfully")
             print("📋 Available endpoints:")
             print("   - GET  /health")
-            print("   - GET  /api/constitutional/status")
+            print("   - GET  /api/constitutional/status") 
             print("   - GET  /api/agents")
             print("   - POST /api/agents/create")
             print("   - POST /api/chat")
             print("   - GET  /api/network/status")
             print("   - WS   /ws/{client_id}")
             
-            print("\n🌐 Server ready for constitutional AI interface!")
-            print("   Access at: http://127.0.0.1:8000")
-            print("   API docs: http://127.0.0.1:8000/api/docs")
+            print("\n🌐 Starting HAI-Net Constitutional Web Server...")
+            print("   Web Interface: http://127.0.0.1:8000")
+            print("   API Documentation: http://127.0.0.1:8000/api/docs")
+            print("   Press Ctrl+C to stop")
+            print("")
             
-            # Note: In production, would call await web_server.start()
-            print("\n🎉 Constitutional Web Server System Working!")
+            # Actually start the server
+            await web_server.start(host="127.0.0.1", port=8000)
             
+        except KeyboardInterrupt:
+            print("\n🛑 Shutting down HAI-Net web server...")
+            await web_server.stop()
+            print("✅ Web server stopped gracefully")
         except Exception as e:
-            print(f"❌ Web server test failed: {e}")
+            print(f"❌ Web server failed: {e}")
+            sys.exit(1)
     
-    # Run the test
-    asyncio.run(test_web_server())
+    # Run the server
+    asyncio.run(start_web_server())

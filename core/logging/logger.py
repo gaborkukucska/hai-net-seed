@@ -54,6 +54,10 @@ class ConstitutionalFormatter(logging.Formatter):
         # Format timestamp
         record.asctime = datetime.fromtimestamp(record.created).isoformat()
         
+        # Ensure message field exists
+        if not hasattr(record, 'message'):
+            record.message = record.getMessage()
+        
         # Apply base formatting
         formatted = self.base_format.format(**record.__dict__)
         
@@ -67,7 +71,7 @@ class ConstitutionalFormatter(logging.Formatter):
 class HAINetLogger:
     """
     Constitutional compliance-aware logger for HAI-Net
-    Provides audit trail and privacy protection
+    Provides audit trail and privacy protection with categorized debug logging
     """
     
     def __init__(self, name: str, settings: Optional[HAINetSettings] = None):
@@ -79,6 +83,30 @@ class HAINetLogger:
         # Constitutional compliance tracking
         self.compliance_events: List[Dict[str, Any]] = []
         self.violation_count = 0
+        
+        # Debug categorization
+        self.debug_categories = {
+            'init': 'INIT',
+            'network': 'NETWORK', 
+            'crypto': 'CRYPTO',
+            'ai': 'AI',
+            'storage': 'STORAGE',
+            'web': 'WEB',
+            'agent': 'AGENT',
+            'guardian': 'GUARDIAN',
+            'identity': 'IDENTITY',
+            'config': 'CONFIG',
+            'memory': 'MEMORY',
+            'p2p': 'P2P',
+            'discovery': 'DISCOVERY',
+            'role': 'ROLE',
+            'websocket': 'WEBSOCKET',
+            'api': 'API',
+            'constitutional': 'CONSTITUTIONAL',
+            'violation': 'VIOLATION',
+            'performance': 'PERFORMANCE',
+            'error': 'ERROR'
+        }
         
     def _setup_logger(self):
         """Set up logger with constitutional compliance"""
@@ -257,33 +285,108 @@ class HAINetLogger:
             "last_event": self.compliance_events[-1] if self.compliance_events else None
         }
     
-    def info(self, message: str, **kwargs):
-        """Info level logging"""
-        self.logger.info(message, **kwargs)
+    def info(self, message: str, category: str = "general", function: str = "", **kwargs):
+        """Info level logging with categorization"""
+        formatted_message = self._format_categorized_message(message, category, function)
+        self.logger.info(formatted_message, **kwargs)
     
-    def debug(self, message: str, **kwargs):
-        """Debug level logging"""
-        self.logger.debug(message, **kwargs)
+    def debug(self, message: str, category: str = "general", function: str = "", **kwargs):
+        """Debug level logging with categorization"""
+        formatted_message = self._format_categorized_message(message, category, function)
+        self.logger.debug(formatted_message, **kwargs)
     
-    def warning(self, message: str, **kwargs):
-        """Warning level logging"""
-        self.logger.warning(message, **kwargs)
+    def warning(self, message: str, category: str = "general", function: str = "", **kwargs):
+        """Warning level logging with categorization"""
+        formatted_message = self._format_categorized_message(message, category, function)
+        self.logger.warning(formatted_message, **kwargs)
     
-    def error(self, message: str, **kwargs):
-        """Error level logging"""
-        self.logger.error(message, **kwargs)
+    def error(self, message: str, category: str = "error", function: str = "", **kwargs):
+        """Error level logging with categorization"""
+        formatted_message = self._format_categorized_message(message, category, function)
+        self.logger.error(formatted_message, **kwargs)
     
-    def critical(self, message: str, **kwargs):
-        """Critical level logging"""
-        self.logger.critical(message, **kwargs)
+    def critical(self, message: str, category: str = "error", function: str = "", **kwargs):
+        """Critical level logging with categorization"""
+        formatted_message = self._format_categorized_message(message, category, function)
+        self.logger.critical(formatted_message, **kwargs)
+    
+    def _format_categorized_message(self, message: str, category: str, function: str) -> str:
+        """Format message with category and function information for easy searching"""
+        category_tag = self.debug_categories.get(category, category.upper())
+        
+        if function:
+            return f"[{category_tag}::{function}] {message}"
+        else:
+            return f"[{category_tag}] {message}"
+    
+    # Convenience methods for specific categories
+    def debug_init(self, message: str, function: str = "", **kwargs):
+        """Debug initialization processes"""
+        self.debug(message, category="init", function=function, **kwargs)
+    
+    def debug_network(self, message: str, function: str = "", **kwargs):
+        """Debug network operations"""
+        self.debug(message, category="network", function=function, **kwargs)
+    
+    def debug_crypto(self, message: str, function: str = "", **kwargs):
+        """Debug cryptographic operations"""
+        self.debug(message, category="crypto", function=function, **kwargs)
+    
+    def debug_ai(self, message: str, function: str = "", **kwargs):
+        """Debug AI operations"""
+        self.debug(message, category="ai", function=function, **kwargs)
+    
+    def debug_storage(self, message: str, function: str = "", **kwargs):
+        """Debug storage operations"""
+        self.debug(message, category="storage", function=function, **kwargs)
+    
+    def debug_web(self, message: str, function: str = "", **kwargs):
+        """Debug web server operations"""
+        self.debug(message, category="web", function=function, **kwargs)
+    
+    def debug_agent(self, message: str, function: str = "", **kwargs):
+        """Debug agent operations"""
+        self.debug(message, category="agent", function=function, **kwargs)
+    
+    def debug_constitutional(self, message: str, function: str = "", **kwargs):
+        """Debug constitutional compliance"""
+        self.debug(message, category="constitutional", function=function, **kwargs)
+    
+    def debug_performance(self, message: str, function: str = "", **kwargs):
+        """Debug performance metrics"""
+        self.debug(message, category="performance", function=function, **kwargs)
+    
+    def info_init(self, message: str, function: str = "", **kwargs):
+        """Info initialization processes"""
+        self.info(message, category="init", function=function, **kwargs)
+    
+    def info_network(self, message: str, function: str = "", **kwargs):
+        """Info network operations"""
+        self.info(message, category="network", function=function, **kwargs)
+    
+    def info_web(self, message: str, function: str = "", **kwargs):
+        """Info web server operations"""
+        self.info(message, category="web", function=function, **kwargs)
+    
+    def warning_constitutional(self, message: str, function: str = "", **kwargs):
+        """Warning for constitutional issues"""
+        self.warning(message, category="constitutional", function=function, **kwargs)
+    
+    def warning_network(self, message: str, function: str = "", **kwargs):
+        """Warning for network issues"""
+        self.warning(message, category="network", function=function, **kwargs)
+    
+    def error_constitutional(self, message: str, function: str = "", **kwargs):
+        """Error for constitutional violations"""
+        self.error(message, category="constitutional", function=function, **kwargs)
 
 
 # Global logger registry
 _loggers: Dict[str, HAINetLogger] = {}
-_default_settings: Optional[HAINetSettings] = None
+_default_settings: Optional[Any] = None
 
 
-def set_default_settings(settings: HAINetSettings):
+def set_default_settings(settings: Any):
     """Set default settings for all loggers"""
     global _default_settings
     _default_settings = settings

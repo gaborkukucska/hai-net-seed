@@ -1,0 +1,99 @@
+# HAI-Net Seed Framework - User Settings
+# Easy configuration for common settings
+
+# =============================================================================
+# BASIC SETTINGS - Most commonly changed settings
+# =============================================================================
+
+# Logging Configuration
+logging:
+  level: "DEBUG"          # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  save_to_file: true     # Save logs to /logs folder
+  console_output: true   # Show logs in console
+
+# Node Configuration  
+node:
+  role: "master"         # master or slave
+  name: "HAI-Net Local Hub"
+
+# Network Ports
+network:
+  web_port: 8000         # Web interface port
+  api_port: 8080         # API server port
+  p2p_port: 4001         # P2P networking port
+
+# Development Settings
+development:
+  debug_mode: false      # Enable debug features
+  auto_reload: false     # Auto-reload on code changes
+
+# =============================================================================
+# CONSTITUTIONAL SETTINGS - Core principles (modify carefully)
+# =============================================================================
+
+constitutional:
+  version: "1.0"
+  
+  # Privacy First (Article I) - User data protection
+  privacy:
+    data_sharing_consent: false    # Never share data without explicit consent
+    encryption_enabled: true      # Always encrypt data
+    watermarking_enabled: true    # Watermark AI content
+    
+  # Human Rights (Article II) - User control and rights
+  human_rights:
+    accessibility_mode: true      # Enable accessibility features
+    user_override_enabled: true   # Users can override AI decisions
+    bias_detection: true          # Detect and warn about AI bias
+    
+  # Decentralization (Article III) - No central authority
+  decentralization:
+    central_authority_disabled: true  # Never connect to central servers
+    local_first: true                 # Process locally when possible
+    mesh_networking: true             # Enable P2P networking
+    
+  # Community Focus (Article IV) - Real world connections
+  community:
+    participation_enabled: true   # Enable community features
+    environmental_mode: true      # Prioritize resource efficiency
+    irl_prioritization: true      # Favor in-person interactions
+
+# =============================================================================
+# ADVANCED SETTINGS - For experienced users
+# =============================================================================
+
+ai:
+  backend: "ollama"              # ollama, llama.cpp, vllm
+  default_model: "llama2:7b"     # Default language model
+  voice_enabled: true           # Enable speech-to-text/text-to-speech
+  
+resources:
+  max_cpu_percent: 80.0         # Maximum CPU usage
+  max_memory_percent: 85.0      # Maximum memory usage
+  min_disk_space_gb: 10.0       # Minimum free disk space
+
+security:
+  session_timeout_minutes: 60   # User session timeout
+  max_login_attempts: 3         # Maximum failed login attempts
+  require_2fa: false            # Require two-factor authentication
+
+guardian:
+  enabled: true                 # Enable Constitutional Guardian
+  mode: "educational"           # educational, protective, emergency
+  auto_correction: true         # Auto-correct constitutional violations
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# 
+# 1. This file controls the most common HAI-Net settings
+# 2. Constitutional settings maintain the core principles - modify carefully
+# 3. For advanced configuration, see core/config/settings.py
+# 4. Environment variables with HAINET_ prefix override these settings
+# 5. Changes take effect after restarting HAI-Net
+#
+# Examples:
+#   - Set debug logging: logging.level = "DEBUG"
+#   - Change web port: network.web_port = 3000
+#   - Enable development mode: development.debug_mode = true
+#
