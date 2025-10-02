@@ -89,6 +89,16 @@ class ConstitutionalLLMListener:
             except Exception as e:
                 self.logger.error(f"Failed to update LLM service: {e}", exc_info=True)
 
+    # Add synchronous shims for compatibility with some zeroconf dispatchers
+    def add_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        asyncio.create_task(self.async_add_service(zeroconf, service_type, name))
+
+    def remove_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        asyncio.create_task(self.async_remove_service(zeroconf, service_type, name))
+
+    def update_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        asyncio.create_task(self.async_update_service(zeroconf, service_type, name))
+
 
 class LLMDiscovery:
     """
