@@ -655,7 +655,9 @@ class LLMDiscovery:
             return True
             
         except Exception as e:
+            import traceback
             self.logger.error(f"Failed to register local LLM service. Error: {repr(e)}, Type: {type(e).__name__}")
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
             return False
     
     async def _check_local_ollama(self) -> Optional[Dict[str, Any]]:
