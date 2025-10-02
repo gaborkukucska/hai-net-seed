@@ -11,7 +11,7 @@ import time
 import socket
 from typing import Dict, List, Optional, Callable, Any, Union
 from dataclasses import dataclass
-from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo, AsyncServiceListener
+from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo
 import aiohttp
 from pathlib import Path
 
@@ -40,7 +40,7 @@ class LLMNode:
     capabilities: Dict[str, Any]
 
 
-class ConstitutionalLLMListener(AsyncServiceListener):
+class ConstitutionalLLMListener:
     """
     Async service listener for LLM providers with constitutional compliance.
     """
