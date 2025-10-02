@@ -655,7 +655,7 @@ class LLMDiscovery:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to register local LLM service: {e}")
+            self.logger.error(f"Failed to register local LLM service. Error: {repr(e)}, Type: {type(e).__name__}")
             return False
     
     async def _check_local_ollama(self) -> Optional[Dict[str, Any]]:
