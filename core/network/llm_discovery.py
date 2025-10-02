@@ -610,20 +610,20 @@ class LLMDiscovery:
                 return False
             
             # Prepare service properties, ensuring the models list fits in mDNS TXT record
-            models_list = ollama_info["models"]
-            models_json = json.dumps(models_list)
+            models_list = ollama_info["models"][:]  # Make a copy to avoid modifying the original
 
-            # Truncate model list if it's too long for a single TXT record
+            # Truncate model list if it's too long for a single TXT record by re-serializing it until it fits
             # Max length for a single string in a TXT record is 255 bytes. We'll aim for less to be safe.
-            while len(models_json.encode('utf-8')) > 220 and models_list:
+            models_json_bytes = json.dumps(models_list).encode('utf-8')
+            while len(models_json_bytes) > 220 and models_list:
                 models_list.pop()
-                models_json = json.dumps(models_list) + "..."
+                models_json_bytes = json.dumps(models_list).encode('utf-8')
 
             properties = {
                 b"provider": b"ollama",
                 b"constitutional_version": self.constitutional_version.encode(),
                 b"node_id": self.node_id.encode(),
-                b"models": models_json.encode('utf-8'),
+                b"models": models_json_bytes,
                 b"api_version": ollama_info.get("version", "unknown").encode(),
                 b"health_endpoint": b"/api/tags",
                 b"privacy_compliant": b"true",
