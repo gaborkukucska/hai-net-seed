@@ -592,12 +592,14 @@ if __name__ == "__main__":
             await web_server.start(host="127.0.0.1", port=8000)
             
         except KeyboardInterrupt:
+            # This is the expected, clean way to shut down the server.
+            pass
+        except Exception as e:
+            print(f"❌ Web server failed during startup or operation: {e}")
+        finally:
             print("\n🛑 Shutting down HAI-Net web server...")
             await web_server.stop()
             print("✅ Web server stopped gracefully")
-        except Exception as e:
-            print(f"❌ Web server failed: {e}")
-            sys.exit(1)
     
     # Run the server
     asyncio.run(start_web_server())

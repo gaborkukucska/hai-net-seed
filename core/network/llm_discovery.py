@@ -9,10 +9,9 @@ import asyncio
 import json
 import time
 import socket
-import threading
 from typing import Dict, List, Optional, Callable, Any, Union
 from dataclasses import dataclass
-from zeroconf import ServiceBrowser, Zeroconf, ServiceInfo, ServiceListener
+from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo, AsyncServiceListener
 import aiohttp
 from pathlib import Path
 
@@ -41,24 +40,23 @@ class LLMNode:
     capabilities: Dict[str, Any]
 
 
-class ConstitutionalLLMListener(ServiceListener):
+class ConstitutionalLLMListener(AsyncServiceListener):
     """
-    Service listener for LLM providers with constitutional compliance
+    Async service listener for LLM providers with constitutional compliance.
     """
-    
-    def __init__(self, discovery_manager):
+
+    def __init__(self, discovery_manager: 'LLMDiscovery'):
         self.discovery = discovery_manager
         self.logger = get_logger("network.llm_discovery")
-    
-    def add_service(self, zeroconf: Zeroconf, service_type: str, name: str):
-        """Handle new LLM service discovery"""
-        info = zeroconf.get_service_info(service_type, name)
+
+    async def async_add_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Handle new LLM service discovery asynchronously."""
+        info = await zeroconf.async_get_service_info(service_type, name)
         if info:
             try:
                 llm_node = self.discovery._parse_llm_service_info(name, info)
                 if self.discovery._validate_llm_constitutional_compliance(llm_node):
-                    # Use thread-safe method to add discovered node
-                    self.discovery._add_discovered_llm_node_sync(llm_node)
+                    await self.discovery._add_discovered_llm_node(llm_node)
                     self.logger.log_decentralization_event(
                         f"llm_provider_discovered: {llm_node.node_id}",
                         local_processing=True
@@ -69,27 +67,27 @@ class ConstitutionalLLMListener(ServiceListener):
                         "reason": "Failed constitutional validation"
                     })
             except Exception as e:
-                self.logger.error(f"Failed to process discovered LLM service: {e}")
-    
-    def remove_service(self, zeroconf: Zeroconf, service_type: str, name: str):
-        """Handle LLM service removal"""
+                self.logger.error(f"Failed to process discovered LLM service: {e}", exc_info=True)
+
+    async def async_remove_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Handle LLM service removal asynchronously."""
         node_id = name.split('.')[0] if '.' in name else name
         self.discovery._remove_discovered_llm_node(node_id)
         self.logger.log_decentralization_event(
             f"llm_provider_removed: {node_id}",
             local_processing=True
         )
-    
-    def update_service(self, zeroconf: Zeroconf, service_type: str, name: str):
-        """Handle LLM service updates"""
-        info = zeroconf.get_service_info(service_type, name)
+
+    async def async_update_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Handle LLM service updates asynchronously."""
+        info = await zeroconf.async_get_service_info(service_type, name)
         if info:
             try:
                 llm_node = self.discovery._parse_llm_service_info(name, info)
                 llm_node.last_seen = time.time()
-                asyncio.create_task(self.discovery._update_discovered_llm_node(llm_node))
+                await self.discovery._update_discovered_llm_node(llm_node)
             except Exception as e:
-                self.logger.error(f"Failed to update LLM service: {e}")
+                self.logger.error(f"Failed to update LLM service: {e}", exc_info=True)
 
 
 class LLMDiscovery:
@@ -127,10 +125,9 @@ class LLMDiscovery:
         }
         
         # Zeroconf instances
-        self.zeroconf: Optional[Zeroconf] = None
-        self.service_info: Optional[ServiceInfo] = None
-        self.browsers: List[ServiceBrowser] = []
-        self.listener: Optional[ConstitutionalLLMListener] = None
+        self.aiozc: Optional[AsyncZeroconf] = None
+        self.service_info: Optional[AsyncServiceInfo] = None
+        self.browser: Optional[AsyncServiceBrowser] = None
         
         # Discovered LLM nodes
         self.discovered_llm_nodes: Dict[str, LLMNode] = {}
@@ -141,45 +138,42 @@ class LLMDiscovery:
         self.constitutional_version = "1.0"
         self.trust_threshold = 0.6  # Higher threshold for LLM providers
         
-        # Threading and async
-        self.discovery_thread: Optional[threading.Thread] = None
+        # Async tasks
         self.running = False
-        self._lock = threading.Lock()
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self._lock = asyncio.Lock()
+        self.maintenance_task: Optional[asyncio.Task] = None
         
         # Health monitoring
-        self.health_check_interval = 30  # seconds
+        self.health_check_interval = 60  # seconds
         self.health_timeout = 5  # seconds
     
     async def start_discovery(self) -> bool:
         """
-        Start comprehensive AI service discovery across the local network
-        Constitutional requirement: Local-first AI discovery
+        Start comprehensive AI service discovery across the local network using modern asyncio.
         """
         try:
             if self.running:
                 self.logger.warning("AI discovery already running")
                 return True
-            
-            # Initialize Zeroconf
-            self.zeroconf = Zeroconf()
-            
+
+            self.aiozc = AsyncZeroconf()
+
             # Register local AI services if we have any
             await self._register_local_ai_services()
             
-            # Start mDNS browsing for AI services
-            self._start_llm_browsing()
+            # Start mDNS browsing for all AI services
+            self.browser = AsyncServiceBrowser(
+                self.aiozc.zeroconf,
+                list(self.ai_service_types.keys()),
+                listener=ConstitutionalLLMListener(self)
+            )
             
             # Start aggressive network scanning for non-mDNS services
             asyncio.create_task(self._start_network_scanning())
             
-            # Start maintenance thread
+            # Start maintenance task
             self.running = True
-            self.discovery_thread = threading.Thread(
-                target=self._discovery_maintenance_loop,
-                daemon=True
-            )
-            self.discovery_thread.start()
+            self.maintenance_task = asyncio.create_task(self._discovery_maintenance_loop())
             
             self.logger.log_decentralization_event(
                 "ai_discovery_started",
@@ -190,7 +184,7 @@ class LLMDiscovery:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start AI discovery: {e}")
+            self.logger.error(f"Failed to start AI discovery: {e}", exc_info=True)
             return False
     
     async def _start_network_scanning(self):
@@ -572,24 +566,27 @@ class LLMDiscovery:
         return registered
     
     async def stop_discovery(self):
-        """Stop LLM discovery service"""
+        """Stop LLM discovery service."""
         try:
             self.running = False
+            if self.maintenance_task:
+                self.maintenance_task.cancel()
+                try:
+                    await self.maintenance_task
+                except asyncio.CancelledError:
+                    pass
+
+            if self.browser:
+                await self.browser.async_cancel()
+                self.browser = None
             
-            if self.discovery_thread:
-                self.discovery_thread.join(timeout=5.0)
-            
-            for browser in self.browsers:
-                browser.cancel()
-            self.browsers.clear()
-            
-            if self.service_info and self.zeroconf:
-                self.zeroconf.unregister_service(self.service_info)
+            if self.service_info and self.aiozc:
+                await self.aiozc.async_unregister_service(self.service_info)
                 self.service_info = None
-            
-            if self.zeroconf:
-                self.zeroconf.close()
-                self.zeroconf = None
+
+            if self.aiozc:
+                await self.aiozc.async_close()
+                self.aiozc = None
             
             self.logger.log_decentralization_event(
                 "llm_discovery_stopped",
@@ -598,7 +595,7 @@ class LLMDiscovery:
             self.logger.info("HAI-Net LLM discovery stopped")
             
         except Exception as e:
-            self.logger.error(f"Error stopping LLM discovery: {e}")
+            self.logger.error(f"Error stopping LLM discovery: {e}", exc_info=True)
     
     async def _register_local_llm_service(self) -> bool:
         """Register local LLM service if available"""
@@ -620,21 +617,21 @@ class LLMDiscovery:
                 models_json_bytes = json.dumps(models_list).encode('utf-8')
 
             properties = {
-                b"provider": b"ollama",
-                b"constitutional_version": self.constitutional_version.encode(),
-                b"node_id": self.node_id.encode(),
-                b"models": models_json_bytes,
-                b"api_version": ollama_info.get("version", "unknown").encode(),
-                b"health_endpoint": b"/api/tags",
-                b"privacy_compliant": b"true",
-                b"local_processing": b"true"
+                "provider": "ollama",
+                "constitutional_version": self.constitutional_version,
+                "node_id": self.node_id,
+                "models": models_json_bytes.decode('utf-8'),
+                "api_version": ollama_info.get("version", "unknown"),
+                "health_endpoint": "/api/tags",
+                "privacy_compliant": "true",
+                "local_processing": "true"
             }
             
             # Create service info
             hai_llm_service_type = "_hai-llm._tcp.local."
             service_name = f"{self.node_id}-ollama.{hai_llm_service_type}"
             
-            self.service_info = ServiceInfo(
+            self.service_info = AsyncServiceInfo(
                 hai_llm_service_type,
                 service_name,
                 addresses=[socket.inet_aton("127.0.0.1")],
@@ -644,7 +641,7 @@ class LLMDiscovery:
             )
             
             # Register the service
-            self.zeroconf.register_service(self.service_info)
+            await self.aiozc.async_register_service(self.service_info)
             
             self.logger.log_privacy_event(
                 "local_llm_service_registered",
@@ -699,67 +696,35 @@ class LLMDiscovery:
             
         return None
     
-    def _start_llm_browsing(self):
-        """Start browsing for all AI services on the network"""
-        try:
-            self.listener = ConstitutionalLLMListener(self)
-            
-            # Browse for all AI service types
-            for service_type, service_name in self.ai_service_types.items():
-                try:
-                    browser = ServiceBrowser(
-                        self.zeroconf,
-                        service_type,
-                        listener=self.listener
-                    )
-                    self.browsers.append(browser)
-                    self.logger.debug(f"Started browsing for {service_name} services: {service_type}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to browse for {service_name} ({service_type}): {e}")
-            
-            service_types_list = list(self.ai_service_types.keys())
-            self.logger.info(f"🔍 Network AI discovery started for {len(service_types_list)} service types")
-            self.logger.info(f"Searching for: {', '.join(self.ai_service_types.values())}")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to start network AI browsing: {e}")
-    
-    def _parse_llm_service_info(self, name: str, info: ServiceInfo) -> LLMNode:
+    def _parse_llm_service_info(self, name: str, info: AsyncServiceInfo) -> LLMNode:
         """Parse mDNS service info into LLMNode"""
         node_id = name.split('.')[0] if '.' in name else name
         
         # Parse properties
-        props = {}
-        if info.properties:
-            for key, value in info.properties.items():
-                try:
-                    props[key.decode()] = value.decode()
-                except:
-                    props[key.decode()] = value
+        props = {key.decode('utf-8'): value.decode('utf-8') for key, value in info.properties.items()}
         
         # Parse models
         models = []
         if 'models' in props:
             try:
                 models = json.loads(props['models'])
-            except:
+            except (json.JSONDecodeError, AttributeError):
                 pass
         
         # Determine provider type
         provider_type = LLMProvider.OLLAMA  # Default
-        if 'provider' in props:
-            provider_str = props['provider'].lower()
-            if provider_str == 'ollama':
-                provider_type = LLMProvider.OLLAMA
-            elif provider_str == 'llamacpp':
-                provider_type = LLMProvider.LLAMACPP
+        provider_str = props.get('provider', '').lower()
+        if provider_str == 'ollama':
+            provider_type = LLMProvider.OLLAMA
+        elif provider_str == 'llamacpp':
+            provider_type = LLMProvider.LLAMACPP
         
         # Get address
         address = "unknown"
         if info.addresses:
             try:
                 address = socket.inet_ntoa(info.addresses[0])
-            except:
+            except (OSError, AttributeError):
                 pass
         
         # Build API endpoint
@@ -810,7 +775,7 @@ class LLMDiscovery:
     
     async def _add_discovered_llm_node(self, llm_node: LLMNode):
         """Add newly discovered LLM node (async version)"""
-        with self._lock:
+        async with self._lock:
             self.discovered_llm_nodes[llm_node.node_id] = llm_node
             
             # Start initial health check
@@ -826,24 +791,9 @@ class LLMDiscovery:
                 except Exception as e:
                     self.logger.error(f"LLM discovery callback error: {e}")
     
-    def _add_discovered_llm_node_sync(self, llm_node: LLMNode):
-        """Add newly discovered LLM node (synchronous version for mDNS callbacks)"""
-        with self._lock:
-            self.discovered_llm_nodes[llm_node.node_id] = llm_node
-            
-            self.logger.info(f"Discovered LLM provider: {llm_node.node_id} ({llm_node.provider_type.value}) at {llm_node.address}:{llm_node.port}")
-            self.logger.debug(f"Available models: {llm_node.available_models}")
-            
-            # Notify callbacks
-            for callback in self.discovery_callbacks:
-                try:
-                    callback(llm_node)
-                except Exception as e:
-                    self.logger.error(f"LLM discovery callback error: {e}")
-    
     async def _update_discovered_llm_node(self, llm_node: LLMNode):
         """Update existing discovered LLM node"""
-        with self._lock:
+        async with self._lock:
             if llm_node.node_id in self.discovered_llm_nodes:
                 existing = self.discovered_llm_nodes[llm_node.node_id]
                 existing.last_seen = llm_node.last_seen
@@ -852,17 +802,17 @@ class LLMDiscovery:
     
     def _remove_discovered_llm_node(self, node_id: str):
         """Remove discovered LLM node"""
-        with self._lock:
-            if node_id in self.discovered_llm_nodes:
-                removed_node = self.discovered_llm_nodes.pop(node_id)
-                self.logger.info(f"Removed LLM provider: {node_id}")
-                
-                # Notify callbacks
-                for callback in self.removal_callbacks:
-                    try:
-                        callback(node_id)
-                    except Exception as e:
-                        self.logger.error(f"LLM removal callback error: {e}")
+        # This method can be called from a sync context, so it does not acquire the async lock
+        if node_id in self.discovered_llm_nodes:
+            self.discovered_llm_nodes.pop(node_id, None)
+            self.logger.info(f"Removed LLM provider: {node_id}")
+
+            # Notify callbacks
+            for callback in self.removal_callbacks:
+                try:
+                    callback(node_id)
+                except Exception as e:
+                    self.logger.error(f"LLM removal callback error: {e}")
     
     async def _perform_health_check(self, llm_node: LLMNode):
         """Perform health check on LLM node"""
@@ -901,64 +851,52 @@ class LLMDiscovery:
             llm_node.trust_level = max(0.0, llm_node.trust_level - 0.3)
             self.logger.debug(f"Health check failed for {llm_node.node_id}: {e}")
     
-    def _discovery_maintenance_loop(self):
-        """Background maintenance for LLM discovery service"""
+    async def _discovery_maintenance_loop(self):
+        """Asynchronous background maintenance for LLM discovery service."""
         while self.running:
             try:
-                # Run maintenance in async context
-                if self.loop is None:
-                    self.loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(self.loop)
+                await asyncio.sleep(self.health_check_interval)
+                current_time = time.time()
                 
-                self.loop.run_until_complete(self._maintenance_cycle())
+                async with self._lock:
+                    nodes_to_check = list(self.discovered_llm_nodes.values())
+                    stale_node_ids = [
+                        node.node_id for node in nodes_to_check
+                        if current_time - node.last_seen > 300  # 5 minutes
+                    ]
+
+                # Perform health checks
+                if nodes_to_check:
+                    await asyncio.gather(*[self._perform_health_check(node) for node in nodes_to_check])
+
+                # Remove stale nodes
+                for node_id in stale_node_ids:
+                    self._remove_discovered_llm_node(node_id)
                 
-                # Sleep before next maintenance cycle
-                time.sleep(self.health_check_interval)
-                
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                self.logger.error(f"LLM discovery maintenance error: {e}")
-                time.sleep(10)  # Shorter sleep on error
-    
-    async def _maintenance_cycle(self):
-        """Perform maintenance tasks"""
-        current_time = time.time()
-        
-        with self._lock:
-            stale_nodes = []
-            
-            for node_id, llm_node in self.discovered_llm_nodes.items():
-                # Remove stale nodes (not seen for 5 minutes)
-                if current_time - llm_node.last_seen > 300:
-                    stale_nodes.append(node_id)
-                    continue
-                
-                # Perform health check
-                await self._perform_health_check(llm_node)
-            
-            # Remove stale nodes
-            for node_id in stale_nodes:
-                self._remove_discovered_llm_node(node_id)
+                self.logger.error(f"LLM discovery maintenance error: {e}", exc_info=True)
+                await asyncio.sleep(10)  # Pause on error
     
     def get_discovered_llm_nodes(self, trusted_only: bool = True, healthy_only: bool = True) -> List[LLMNode]:
         """Get list of discovered LLM nodes"""
-        with self._lock:
-            nodes = list(self.discovered_llm_nodes.values())
-            
-            if trusted_only:
-                nodes = [n for n in nodes if n.trust_level >= self.trust_threshold]
-            
-            if healthy_only:
-                nodes = [n for n in nodes if n.health_status == 'healthy']
-            
-            # Sort by trust level and response time
-            nodes.sort(key=lambda n: (n.trust_level, -n.response_time_ms), reverse=True)
-            
-            return nodes
+        nodes = list(self.discovered_llm_nodes.values())
+
+        if trusted_only:
+            nodes = [n for n in nodes if n.trust_level >= self.trust_threshold]
+
+        if healthy_only:
+            nodes = [n for n in nodes if n.health_status == 'healthy']
+
+        # Sort by trust level and response time
+        nodes.sort(key=lambda n: (n.trust_level, -n.response_time_ms), reverse=True)
+
+        return nodes
     
     def get_llm_node_by_id(self, node_id: str) -> Optional[LLMNode]:
         """Get specific LLM node by ID"""
-        with self._lock:
-            return self.discovered_llm_nodes.get(node_id)
+        return self.discovered_llm_nodes.get(node_id)
     
     def get_best_llm_node_for_model(self, model_name: str) -> Optional[LLMNode]:
         """Get the best LLM node that has the specified model"""
@@ -995,22 +933,21 @@ class LLMDiscovery:
     
     def get_discovery_stats(self) -> Dict[str, Any]:
         """Get LLM discovery statistics"""
-        with self._lock:
-            nodes = list(self.discovered_llm_nodes.values())
-            trusted_nodes = [n for n in nodes if n.trust_level >= self.trust_threshold]
-            healthy_nodes = [n for n in nodes if n.health_status == 'healthy']
-            
-            stats = {
-                "total_llm_nodes": len(nodes),
-                "trusted_llm_nodes": len(trusted_nodes),
-                "healthy_llm_nodes": len(healthy_nodes),
-                "total_models": len(self.get_available_models()),
-                "average_trust": sum(n.trust_level for n in nodes) / max(len(nodes), 1),
-                "average_response_time": sum(n.response_time_ms for n in healthy_nodes) / max(len(healthy_nodes), 1),
-                "provider_types": list(set(n.provider_type.value for n in nodes))
-            }
-            
-            return stats
+        nodes = list(self.discovered_llm_nodes.values())
+        trusted_nodes = [n for n in nodes if n.trust_level >= self.trust_threshold]
+        healthy_nodes = [n for n in nodes if n.health_status == 'healthy']
+
+        stats = {
+            "total_llm_nodes": len(nodes),
+            "trusted_llm_nodes": len(trusted_nodes),
+            "healthy_llm_nodes": len(healthy_nodes),
+            "total_models": len(self.get_available_models()),
+            "average_trust": sum(n.trust_level for n in nodes) / max(len(nodes), 1),
+            "average_response_time": sum(n.response_time_ms for n in healthy_nodes) / max(len(healthy_nodes), 1),
+            "provider_types": list(set(n.provider_type.value for n in nodes))
+        }
+
+        return stats
 
 
 def create_llm_discovery_service(settings: HAINetSettings, node_id: str) -> LLMDiscovery:
