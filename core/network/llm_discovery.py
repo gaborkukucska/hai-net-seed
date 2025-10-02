@@ -609,12 +609,21 @@ class LLMDiscovery:
                 self.logger.debug("No local Ollama service detected")
                 return False
             
-            # Prepare service properties
+            # Prepare service properties, ensuring the models list fits in mDNS TXT record
+            models_list = ollama_info["models"]
+            models_json = json.dumps(models_list)
+
+            # Truncate model list if it's too long for a single TXT record
+            # Max length for a single string in a TXT record is 255 bytes. We'll aim for less to be safe.
+            while len(models_json.encode('utf-8')) > 220 and models_list:
+                models_list.pop()
+                models_json = json.dumps(models_list) + "..."
+
             properties = {
                 b"provider": b"ollama",
                 b"constitutional_version": self.constitutional_version.encode(),
                 b"node_id": self.node_id.encode(),
-                b"models": json.dumps(ollama_info["models"]).encode(),
+                b"models": models_json.encode('utf-8'),
                 b"api_version": ollama_info.get("version", "unknown").encode(),
                 b"health_endpoint": b"/api/tags",
                 b"privacy_compliant": b"true",
