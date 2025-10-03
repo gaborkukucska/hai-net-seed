@@ -575,27 +575,28 @@ if __name__ == "__main__":
             print("✅ Web server created and configured successfully")
             print("📋 Available endpoints:")
             print("   - GET  /health")
-            print("   - GET  /api/constitutional/status") 
+            print("   - GET  /api/constitutional/status")
             print("   - GET  /api/agents")
             print("   - POST /api/agents/create")
             print("   - POST /api/chat")
             print("   - GET  /api/network/status")
             print("   - WS   /ws/{client_id}")
-            
+
             print("\n🌐 Starting HAI-Net Constitutional Web Server...")
             print("   Web Interface: http://127.0.0.1:8000")
             print("   API Documentation: http://127.0.0.1:8000/api/docs")
             print("   Press Ctrl+C to stop")
             print("")
-            
+
             # 5. Start the server
             await web_server.start(host="127.0.0.1", port=8000)
-            
+
         except KeyboardInterrupt:
             # This is the expected, clean way to shut down the server.
             pass
         except Exception as e:
             print(f"❌ Web server failed during startup or operation: {e}")
+            # The finally block will handle shutdown
         finally:
             print("\n🛑 Shutting down HAI-Net web server...")
             await web_server.stop()
