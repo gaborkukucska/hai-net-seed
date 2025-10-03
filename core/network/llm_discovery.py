@@ -9,7 +9,7 @@ import asyncio
 import json
 import time
 import socket
-from typing import Dict, List, Optional, Callable, Any, Union
+from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo
 import aiohttp
@@ -92,12 +92,15 @@ class ConstitutionalLLMListener:
 
     # Synchronous shims for compatibility
     def add_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Shim for older zeroconf versions."""
         asyncio.create_task(self.async_add_service(zeroconf, service_type, name))
 
     def remove_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Shim for older zeroconf versions."""
         asyncio.create_task(self.async_remove_service(zeroconf, service_type, name))
 
     def update_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
+        """Shim for older zeroconf versions."""
         asyncio.create_task(self.async_update_service(zeroconf, service_type, name))
 
 
@@ -117,7 +120,6 @@ class LLMDiscovery:
         self.ai_service_types = {
             "_hai-llm._tcp.local.": "HAI-Net LLM",
             "_ollama._tcp.local.": "Ollama",
-            # ... other service types
         }
         
         self.aiozc: Optional[AsyncZeroconf] = None

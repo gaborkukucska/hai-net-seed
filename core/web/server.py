@@ -319,8 +319,7 @@ class WebServer:
                     return templates.TemplateResponse("index.html", {"request": request})
             
         except Exception as e:
-            # Log the specific error but continue, as the server can run without the frontend.
-            self.logger.warning(f"Static files or Jinja2 templates setup failed: {e}. The API will still be available.")
+            self.logger.warning(f"Static files setup failed: {e}")
 
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: str):
         """Handle WebSocket connection with constitutional compliance"""
@@ -536,43 +535,19 @@ if __name__ == "__main__":
     import asyncio
     import sys
     from core.config.settings import HAINetSettings
-    from core.ai.agents import AgentManager
-    from core.ai.guardian import ConstitutionalGuardian
-    from core.ai.tools.executor import ToolExecutor
-    from core.ai.interaction_handler import InteractionHandler
-    from core.ai.workflow_manager import WorkflowManager
-    from core.ai.cycle_handler import AgentCycleHandler
     
     async def start_web_server():
         print("HAI-Net Constitutional Web Server")
         print("=" * 40)
         
-        # 1. Create settings from environment
+        # Create settings from environment
         settings = HAINetSettings()
         
-        # 2. Initialize all core components
-        print("🔧 Initializing HAI-Net core components...")
-        guardian = ConstitutionalGuardian(settings)
-        agent_manager = AgentManager(settings)
-        tool_executor = ToolExecutor(settings)
-        interaction_handler = InteractionHandler(settings, tool_executor)
-        workflow_manager = WorkflowManager(settings)
-        cycle_handler = AgentCycleHandler(settings, interaction_handler, workflow_manager, guardian)
-
-        # 3. Wire up the dependencies
-        print("🔗 Wiring up component dependencies...")
-        agent_manager.set_handlers(cycle_handler, workflow_manager)
-
-        # 4. Create and configure the web server
+        # Create and start web server
         web_server = create_web_server(settings)
-        web_server.inject_dependencies(
-            agent_manager=agent_manager,
-            guardian=guardian
-            # TODO: Inject other managers like LLMManager, MemoryManager etc. later
-        )
         
         try:
-            print("✅ Web server created and configured successfully")
+            print("✅ Web server created successfully")
             print("📋 Available endpoints:")
             print("   - GET  /health")
             print("   - GET  /api/constitutional/status")
@@ -588,19 +563,16 @@ if __name__ == "__main__":
             print("   Press Ctrl+C to stop")
             print("")
 
-            # 5. Start the server
+            # Actually start the server
             await web_server.start(host="127.0.0.1", port=8000)
 
         except KeyboardInterrupt:
-            # This is the expected, clean way to shut down the server.
-            pass
-        except Exception as e:
-            print(f"❌ Web server failed during startup or operation: {e}")
-            # The finally block will handle shutdown
-        finally:
             print("\n🛑 Shutting down HAI-Net web server...")
             await web_server.stop()
             print("✅ Web server stopped gracefully")
+        except Exception as e:
+            print(f"❌ Web server failed: {e}")
+            sys.exit(1)
     
     # Run the server
     asyncio.run(start_web_server())

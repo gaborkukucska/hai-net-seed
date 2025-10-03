@@ -19,7 +19,7 @@ from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
 from core.storage.vector_store import VectorStore, VectorSearchResult
-from .schemas import AgentMemory
+from .agents import AgentMemory
 
 class MemoryType(Enum):
     """Types of memories"""
