@@ -320,7 +320,7 @@ class WebServer:
             
         except Exception as e:
             self.logger.warning(f"Static files setup failed: {e}")
-    
+
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: str):
         """Handle WebSocket connection with constitutional compliance"""
         await websocket.accept()
@@ -535,44 +535,89 @@ if __name__ == "__main__":
     import asyncio
     import sys
     from core.config.settings import HAINetSettings
+    from core.ai.agents import AgentManager
+    from core.ai.guardian import ConstitutionalGuardian
+    from core.ai.llm import LLMManager
+    from core.ai.tools.executor import ToolExecutor
+    from core.ai.interaction_handler import InteractionHandler
+    from core.ai.workflow_manager import WorkflowManager
+    from core.ai.cycle_handler import AgentCycleHandler
     
     async def start_web_server():
         print("HAI-Net Constitutional Web Server")
         print("=" * 40)
         
-        # Create settings from environment
+        # 1. Create settings from environment
         settings = HAINetSettings()
         
-        # Create and start web server
+        # 2. Initialize all core components in the correct order
+        print("🔧 Initializing HAI-Net core components...")
+        guardian = ConstitutionalGuardian(settings)
+
+        # LLM Manager is needed by Agent Manager
+        print("Initializing LLM Manager...")
+        llm_manager = LLMManager(settings)
+        await llm_manager.initialize()
+
+        # Agent Manager is needed by Tool Executor
+        print("Initializing Agent Manager...")
+        agent_manager = AgentManager(settings, llm_manager=llm_manager)
+
+        # Tool Executor is needed by Interaction Handler
+        print("Initializing Tool Executor...")
+        tool_executor = ToolExecutor(settings, agent_manager=agent_manager)
+
+        # Handlers needed by Cycle Handler
+        print("Initializing Handlers...")
+        interaction_handler = InteractionHandler(settings, tool_executor)
+        workflow_manager = WorkflowManager(settings)
+
+        # Cycle Handler orchestrates agent execution
+        cycle_handler = AgentCycleHandler(settings, interaction_handler, workflow_manager, guardian)
+
+        # 3. Wire up the dependencies for the agent manager
+        print("🔗 Wiring up component dependencies...")
+        agent_manager.set_handlers(cycle_handler, workflow_manager)
+
+        # 4. Create and configure the web server
         web_server = create_web_server(settings)
+        web_server.inject_dependencies(
+            llm_manager=llm_manager,
+            agent_manager=agent_manager,
+            guardian=guardian
+            # TODO: Inject other managers like MemoryManager etc. later
+        )
         
         try:
-            print("✅ Web server created successfully")
+            print("✅ Web server created and configured successfully")
             print("📋 Available endpoints:")
             print("   - GET  /health")
-            print("   - GET  /api/constitutional/status") 
+            print("   - GET  /api/constitutional/status")
             print("   - GET  /api/agents")
             print("   - POST /api/agents/create")
             print("   - POST /api/chat")
             print("   - GET  /api/network/status")
             print("   - WS   /ws/{client_id}")
-            
+
             print("\n🌐 Starting HAI-Net Constitutional Web Server...")
             print("   Web Interface: http://127.0.0.1:8000")
             print("   API Documentation: http://127.0.0.1:8000/api/docs")
             print("   Press Ctrl+C to stop")
             print("")
-            
-            # Actually start the server
+
+            # 5. Start the server
             await web_server.start(host="127.0.0.1", port=8000)
-            
+
         except KeyboardInterrupt:
+            # This is the expected, clean way to shut down the server.
+            pass
+        except Exception as e:
+            print(f"❌ Web server failed during startup or operation: {e}")
+            # The finally block will handle shutdown
+        finally:
             print("\n🛑 Shutting down HAI-Net web server...")
             await web_server.stop()
             print("✅ Web server stopped gracefully")
-        except Exception as e:
-            print(f"❌ Web server failed: {e}")
-            sys.exit(1)
     
     # Run the server
     asyncio.run(start_web_server())

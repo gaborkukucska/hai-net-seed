@@ -63,6 +63,7 @@ class HAINetSettings(BaseSettings):
     
     # AI Service Configuration
     llm_backend: str = Field(default="ollama", description="LLM backend: ollama, llama.cpp, vllm")
+    ollama_enabled: bool = Field(default=True, description="Ollama service enabled")
     default_model: str = Field(default="llama2:7b", description="Default LLM model")
     voice_stt_enabled: bool = Field(default=True, description="Speech-to-text enabled")
     voice_tts_enabled: bool = Field(default=True, description="Text-to-speech enabled")

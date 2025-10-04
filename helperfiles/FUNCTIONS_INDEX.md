@@ -304,121 +304,80 @@ This file tracks the core functions/methods defined within the framework, catego
 
 ## AI System
 
-### core/ai/llm.py
+This section details the components of the HAI-Net AI system, which is architected around the event-driven, multi-agent principles of the TrippleEffect framework.
+
+### Core Agent Components (`core/ai/agents.py`)
+
+This file defines the fundamental building blocks of the agentic system.
 
 **Classes:**
-- `[core/ai/llm.py]::[LLMProvider] - Supported LLM providers enumeration`
-- `[core/ai/llm.py]::[LLMResponse] - Response from LLM inference with constitutional compliance`
-- `[core/ai/llm.py]::[LLMMessage] - Message for LLM conversation`
-- `[core/ai/llm.py]::[LLMModelInfo] - Information about an available LLM model`
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter] - Filters LLM responses for constitutional compliance`
-- `[core/ai/llm.py]::[OllamaProvider] - Ollama LLM provider with constitutional compliance`
-- `[core/ai/llm.py]::[LLMManager] - Constitutional LLM manager for AI services`
-
-**ConstitutionalLLMFilter Methods:**
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter]::[__init__](settings) - Initialize constitutional filter`
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter]::[filter_request](messages, user_did) - Filter incoming requests`
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter]::[filter_response](response, user_did) - Filter outgoing responses`
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter]::[check_privacy_compliance](content) - Check privacy compliance`
-- `[core/ai/llm.py]::[ConstitutionalLLMFilter]::[check_human_rights_compliance](content) - Check human rights compliance`
-
-**OllamaProvider Methods:**
-- `[core/ai/llm.py]::[OllamaProvider]::[__init__](settings) - Initialize Ollama provider`
-- `[core/ai/llm.py]::[OllamaProvider]::[initialize]() - Initialize Ollama provider`
-- `[core/ai/llm.py]::[OllamaProvider]::[generate_response](messages, model, user_did) - Generate response with constitutional compliance`
-- `[core/ai/llm.py]::[OllamaProvider]::[stream_response](messages, model, user_did) - Stream response with compliance`
-- `[core/ai/llm.py]::[OllamaProvider]::[get_available_models]() - Get list of available models`
-- `[core/ai/llm.py]::[OllamaProvider]::[close]() - Close the provider`
-
-**LLMManager Methods:**
-- `[core/ai/llm.py]::[LLMManager]::[__init__](settings) - Initialize LLM manager`
-- `[core/ai/llm.py]::[LLMManager]::[initialize]() - Initialize LLM manager and providers`
-- `[core/ai/llm.py]::[LLMManager]::[generate_response](messages, model, user_did) - Generate response with constitutional compliance`
-- `[core/ai/llm.py]::[LLMManager]::[stream_response](messages, model, user_did) - Stream response with compliance`
-- `[core/ai/llm.py]::[LLMManager]::[get_available_models]() - Get all available models`
-- `[core/ai/llm.py]::[LLMManager]::[close]() - Close all providers`
-
-**Utility Functions:**
-- `[core/ai/llm.py]::[create_llm_manager](settings) - Create constitutional LLM manager`
-
-### core/ai/memory.py
-
-**Classes:**
-- `[core/ai/memory.py]::[MemoryType] - Types of memories enumeration`
-- `[core/ai/memory.py]::[MemoryImportance] - Importance levels for memory retention`
-- `[core/ai/memory.py]::[Memory] - Represents a single memory with constitutional compliance`
-- `[core/ai/memory.py]::[MemoryManager] - Constitutional memory manager for AI agents`
-
-**MemoryManager Methods:**
-- `[core/ai/memory.py]::[MemoryManager]::[__init__](settings, vector_store) - Initialize memory manager`
-- `[core/ai/memory.py]::[MemoryManager]::[store_memory](agent_id, content, memory_type, importance, metadata) - Store memory with constitutional compliance`
-- `[core/ai/memory.py]::[MemoryManager]::[retrieve_memory](agent_id, memory_id) - Retrieve specific memory by ID`
-- `[core/ai/memory.py]::[MemoryManager]::[search_memories](agent_id, query, memory_type, limit) - Search memories with constitutional compliance`
-- `[core/ai/memory.py]::[MemoryManager]::[delete_memory](agent_id, memory_id, user_requested) - Delete memory with constitutional protection`
-- `[core/ai/memory.py]::[MemoryManager]::[get_agent_memory_summary](agent_id) - Get summary of agent's memories`
-- `[core/ai/memory.py]::[MemoryManager]::[cleanup_expired_memories]() - Clean up expired memories across all agents`
-
-**Utility Functions:**
-- `[core/ai/memory.py]::[create_memory_manager](settings, vector_store) - Create constitutional memory manager`
-
-### core/ai/guardian.py
-
-**Classes:**
-- `[core/ai/guardian.py]::[ViolationType] - Types of constitutional violations`
-- `[core/ai/guardian.py]::[ViolationSeverity] - Severity levels for violations`
-- `[core/ai/guardian.py]::[ConstitutionalViolation] - Represents a constitutional violation`
-- `[core/ai/guardian.py]::[ComplianceMetrics] - Constitutional compliance metrics`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian] - Independent constitutional compliance monitor`
-
-**ConstitutionalGuardian Methods:**
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[__init__](settings, guardian_agent) - Initialize constitutional guardian`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[start_monitoring]() - Start constitutional monitoring`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[stop_monitoring]() - Stop constitutional monitoring`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[report_violation](violation_type, severity, principle_violated, description) - Report constitutional violation`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[get_compliance_metrics]() - Get current compliance metrics`
-- `[core/ai/guardian.py]::[ConstitutionalGuardian]::[add_remediation_callback](callback) - Add remediation callback`
-
-**Utility Functions:**
-- `[core/ai/guardian.py]::[create_constitutional_guardian](settings, guardian_agent) - Create constitutional guardian`
-
-### core/ai/agents.py
-
-**Classes:**
-- `[core/ai/agents.py]::[AgentState] - Agent state machine states enumeration`
-- `[core/ai/agents.py]::[AgentRole] - Agent roles in HAI-Net hierarchy`
-- `[core/ai/agents.py]::[AgentCapability] - Agent capabilities enumeration`
-- `[core/ai/agents.py]::[AgentMemory] - Agent memory structure`
-- `[core/ai/agents.py]::[AgentTask] - Represents a task for an agent`
-- `[core/ai/agents.py]::[AgentMetrics] - Agent performance and health metrics`
-- `[core/ai/agents.py]::[AgentStateTransitions] - Manages valid state transitions for agents`
-- `[core/ai/agents.py]::[Agent] - Constitutional AI Agent with state machine`
-- `[core/ai/agents.py]::[AgentManager] - Constitutional Agent Manager for HAI-Net`
-
-**AgentStateTransitions Methods:**
-- `[core/ai/agents.py]::[AgentStateTransitions]::[is_valid_transition](from_state, to_state) - Check if state transition is valid`
-- `[core/ai/agents.py]::[AgentStateTransitions]::[get_valid_transitions](from_state) - Get list of valid transitions`
+- `[core/ai/agents.py]::[AgentState] - Enum for agent states, inspired by the TrippleEffect state machine (e.g., IDLE, PLANNING, WORK, MANAGE).`
+- `[core/ai/agents.py]::[AgentRole] - Enum for agent roles, aligned with the TrippleEffect hierarchy (ADMIN, PM, WORKER, GUARDIAN).`
+- `[core/ai/agents.py]::[AgentCapability] - Enum for specific agent skills (e.g., CODE_GENERATION, RESEARCH).`
+- `[core/ai/agents.py]::[AgentMetrics] - Dataclass for agent performance and health metrics.`
+- `[core/ai/agents.py]::[AgentStateTransitions] - Class managing valid state transitions for agents based on their roles and workflows.`
+- `[core/ai/agents.py]::[Agent] - The core constitutional AI agent class, featuring a state machine and an event-yielding processing method.`
+- `[core/ai/agents.py]::[AgentManager] - The central orchestrator for the agent framework, responsible for agent lifecycle, scheduling, and serving as a hub for handlers.`
 
 **Agent Methods:**
-- `[core/ai/agents.py]::[Agent]::[__init__](agent_id, role, settings, llm_manager, user_did) - Initialize constitutional agent`
-- `[core/ai/agents.py]::[Agent]::[start]() - Start the agent`
-- `[core/ai/agents.py]::[Agent]::[stop]() - Stop the agent`
-- `[core/ai/agents.py]::[Agent]::[assign_task](task) - Assign a task to the agent`
-- `[core/ai/agents.py]::[Agent]::[get_status]() - Get current agent status`
-- `[core/ai/agents.py]::[Agent]::[add_state_change_callback](callback) - Add callback for state changes`
+- `[core/ai/agents.py]::[Agent]::[__init__](...) - Initializes a constitutional agent with a role, state, and capabilities.`
+- `[core/ai/agents.py]::[Agent]::[start]() / [stop]() - Manages the agent's lifecycle.`
+- `[core/ai/agents.py]::[Agent]::[process_message](messages) - **CRITICAL**: The core async generator that yields events (thoughts, tool requests, responses) for the `AgentCycleHandler` to process.`
+- `[core/ai/agents.py]::[Agent]::[get_status]() - Returns the agent's current status and metrics.`
 
 **AgentManager Methods:**
-- `[core/ai/agents.py]::[AgentManager]::[__init__](settings, llm_manager) - Initialize agent manager`
-- `[core/ai/agents.py]::[AgentManager]::[create_agent](role, user_did, capabilities) - Create a new agent with constitutional compliance`
-- `[core/ai/agents.py]::[AgentManager]::[remove_agent](agent_id) - Remove an agent`
-- `[core/ai/agents.py]::[AgentManager]::[assign_task_to_agent](agent_id, task) - Assign task to specific agent`
-- `[core/ai/agents.py]::[AgentManager]::[assign_task_by_capability](task, required_capability) - Assign task by capability`
-- `[core/ai/agents.py]::[AgentManager]::[get_agent](agent_id) - Get agent by ID`
-- `[core/ai/agents.py]::[AgentManager]::[get_agents_by_role](role) - Get agents by role`
-- `[core/ai/agents.py]::[AgentManager]::[get_all_agents]() - Get all agents`
-- `[core/ai/agents.py]::[AgentManager]::[get_manager_stats]() - Get agent manager statistics`
+- `[core/ai/agents.py]::[AgentManager]::[__init__](settings, llm_manager) - Initializes the manager.`
+- `[core/ai/agents.py]::[AgentManager]::[set_handlers](cycle_handler, workflow_manager) - Injects the core handlers for agent execution.`
+- `[core/ai/agents.py]::[AgentManager]::[create_agent](role, ...) - Creates, starts, and registers a new agent.`
+- `[core/ai/agents.py]::[AgentManager]::[handle_user_message](user_input, ...) - The primary entry point for user interaction, which routes input to the ADMIN agent.`
+- `[core/ai/agents.py]::[AgentManager]::[schedule_cycle](agent_id) - **CRITICAL**: Schedules an agent to be run by the `AgentCycleHandler`.`
 
-**Utility Functions:**
-- `[core/ai/agents.py]::[create_agent_manager](settings, llm_manager) - Create constitutional agent manager`
+### Agent Execution Handlers
+
+These components manage the agent execution loop, tool interactions, and high-level workflows.
+
+**`core/ai/cycle_handler.py`**
+- `[core/ai/cycle_handler.py]::[AgentCycleHandler] - The engine of the agent framework. It runs an agent's execution cycle.`
+- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[__init__](...) - Initializes with interaction, workflow, and guardian handlers.`
+- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[run_cycle](agent) - **CRITICAL**: Manages the agent's state, consumes events from `agent.process_message`, and orchestrates actions like tool calls and state changes.`
+
+**`core/ai/interaction_handler.py`**
+- `[core/ai/interaction_handler.py]::[InteractionHandler] - Mediates between the `AgentCycleHandler` and the `ToolExecutor`.`
+- `[core/ai/interaction_handler.py]::[InteractionHandler]::[__init__](settings, tool_executor) - Initializes with the tool executor.`
+- `[core/ai/interaction_handler.py]::[InteractionHandler]::[execute_tool_call](agent, tool_call) - Executes a tool call, injecting the calling agent's context into the tool's arguments.`
+
+**`core/ai/workflow_manager.py`**
+- `[core/ai/workflow_manager.py]::[WorkflowManager] - Manages agent state transitions and orchestrates high-level, multi-agent workflows.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[__init__](settings) - Initializes the manager.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[change_agent_state](agent, new_state) - Safely transitions an agent to a new state.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[process_agent_output_for_workflow](agent, output) - Analyzes agent output for triggers that start complex workflows (e.g., project creation).`
+
+### Agent Tools
+
+These components provide agents with the capabilities to interact with their environment and each other.
+
+**`core/ai/tools/executor.py`**
+- `[core/ai/tools/executor.py]::[ToolExecutor] - Discovers, registers, and executes tools available to agents.`
+- `[core/ai/tools/executor.py]::[ToolExecutor]::[__init__](settings, agent_manager) - Initializes and auto-discovers tools.`
+- `[core/ai/tools/executor.py]::[ToolExecutor]::[execute_tool](name, args) - Executes a tool by name with the provided arguments.`
+
+**`core/ai/tools/communication.py`**
+- `[core/ai/tools/communication.py]::[SendMessageTool] - A tool that allows agents to communicate with each other.`
+- `[core/ai/tools/communication.py]::[SendMessageTool]::[execute](sender_agent, target_agent_id, message) - Sends a message to a target agent's message history and schedules them for execution.`
+
+### Supporting AI Components
+
+These components provide foundational AI capabilities like LLM access, memory, and compliance.
+
+**`core/ai/llm.py`**
+- `[core/ai/llm.py]::[LLMManager] - Manages interaction with LLM providers like Ollama.`
+- `[core/ai/llm.py]::[LLMManager]::[stream_response](...) - Streams a response from an LLM, which is consumed by the `Agent.process_message` method.`
+
+**`core/ai/memory.py`**
+- `[core/ai/memory.py]::[MemoryManager] - Manages the different types of memory for each agent.`
+
+**`core/ai/guardian.py`**
+- `[core/ai/guardian.py]::[ConstitutionalGuardian] - The independent monitor that ensures all agent actions comply with the HAI-Net constitution.`
 
 ---
 

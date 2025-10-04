@@ -98,20 +98,28 @@ except Exception as e:
     fi
 }
 
-# Check for running processes
+# Check for running processes and clean them up
 check_running_processes() {
     log_info "Checking for running HAI-Net processes..."
     
-    # Check for existing HAI-Net processes
+    # Check for existing HAI-Net processes and terminate them
     if pgrep -f "core.web.server" > /dev/null; then
-        log_warning "HAI-Net web server is already running"
-        echo "  PID: $(pgrep -f 'core.web.server')"
-        echo "  Use 'pkill -f core.web.server' to stop"
-        read -p "Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 0
-        fi
+        log_warning "HAI-Net web server is already running. Cleaning up..."
+        pkill -f "core.web.server"
+
+        # Wait up to 5 seconds for the process to terminate
+        local countdown=5
+        while pgrep -f "core.web.server" > /dev/null; do
+            if [ $countdown -eq 0 ]; then
+                log_error "Failed to stop the old server process. Please stop it manually using 'pkill -f core.web.server'."
+                exit 1
+            fi
+            echo -n "."
+            sleep 1
+            countdown=$((countdown-1))
+        done
+        echo "" # Newline after the dots
+        log_success "Cleanup complete."
     fi
     
     # Check for port conflicts

@@ -35,7 +35,7 @@ HAI-Net is built on **four immutable constitutional principles**:
 |-----------|--------|-------------|
 | 🔐 **Identity System** | ✅ Complete | Advanced DID generation with Argon2id, watermarking, constitutional validation |
 | 🌐 **P2P Networking** | ✅ Complete | mDNS discovery, encrypted P2P communication, dynamic role management |
-| 🤖 **AI Agent System** | ✅ Complete | Agent hierarchy with constitutional oversight, master/slave coordination |
+| 🤖 **AI Agent System** | ✅ Complete | Event-driven agent hierarchy (Admin, PM, Worker) based on the TrippleEffect model. |
 | 🧠 **Memory & LLM** | ✅ Complete | Vector store, Ollama integration, constitutional filtering |
 | 🛡️ **Constitutional Guardian** | ✅ Complete | Real-time monitoring, violation detection, educational remediation |
 | 🌐 **Web Interface** | ✅ Complete | FastAPI server, React + WebGPU UI, real-time network visualization |
@@ -249,18 +249,29 @@ print(f"Your HAI-Net DID: {identity['did']}")
 
 ## 🧠 Constitutional AI Agents
 
-HAI-Net implements a **three-tier agent hierarchy**:
+HAI-Net implements a sophisticated, **event-driven agent architecture** inspired by the TrippleEffect framework. This model enables complex, delegated workflows through a clear hierarchy and state management.
+
+### Agent Hierarchy
+The system uses a three-tier agent hierarchy:
 
 ```
-👑 Admin Agents    - User-linked AI entities with full control
-👔 Manager Agents  - Task coordinators spawned by admin
-⚙️ Worker Agents   - Specialized executors for specific tasks
-🛡️ Guardian Agent  - Independent constitutional compliance monitor
+👑 Admin Agent    - The user's primary AI counterpart. It receives user requests, handles top-level planning, and delegates tasks to Project Manager agents.
+👔 PM (Project Manager) Agent - Manages the lifecycle of a specific project. It breaks down the Admin's plan into concrete tasks, spawns Worker agents, and monitors progress.
+⚙️ Worker Agent   - A specialized agent that executes a single, well-defined task assigned by a PM agent.
+🛡️ Guardian Agent  - An independent constitutional compliance monitor that oversees all agent actions.
 ```
 
-**Agent States**: `Idle` → `Startup` → `Planning` → `Conversation` → `Work` → `Maintenance`
+### Event-Driven Execution
+Agents operate asynchronously. Instead of executing tasks directly, an agent's `process_message` method yields a series of **events** (e.g., `tool_requests`, `final_response`). A central `AgentCycleHandler` consumes these events and orchestrates the corresponding actions, such as calling a tool or changing an agent's state. This decoupled design provides robustness and observability.
 
-*All agents operate under constitutional constraints with audit trails.*
+### Agent States
+Agents operate on a detailed state machine, allowing for complex workflows. Key states include:
+- **`PLANNING`**: The Admin or PM agent is creating a plan.
+- **`MANAGE`**: The PM agent is actively monitoring its worker agents.
+- **`WORK`**: A worker agent is executing its assigned task.
+- **`WAIT`**: A worker agent has completed its task and is waiting for review.
+
+*All agents operate under constitutional constraints, with every action logged for a complete audit trail.*
 
 ## 🌐 Network Architecture
 

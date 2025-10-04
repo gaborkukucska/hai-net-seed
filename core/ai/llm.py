@@ -606,11 +606,12 @@ class LLMManager:
         """Initialize LLM manager and providers"""
         try:
             async with self._lock:
-                # Initialize Ollama provider
-                if self.settings.ollama_enabled:
+                # Initialize Ollama provider, checking for settings safely
+                if getattr(self.settings, 'ollama_enabled', False):
+                    ollama_base_url = getattr(self.settings, 'ollama_base_url', "http://localhost:11434")
                     ollama_provider = OllamaProvider(
                         self.settings,
-                        self.settings.ollama_base_url
+                        ollama_base_url
                     )
                     
                     if await ollama_provider.initialize():

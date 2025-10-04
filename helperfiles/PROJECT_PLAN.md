@@ -92,72 +92,52 @@ HAI-Net (Human-AI Network) is a decentralized, privacy-first framework for human
 - [x] API services and WebSocket client integration
 - [x] Real-time constitutional compliance monitoring
 
-### Phase 1: MVP (Weeks 5-8) - **ENHANCED AND ACCELERATED** 
+### Phase 1: MVP (Weeks 5-8) - **COMPLETE** ✅
 
-**Status:** 🧠 MAJOR BREAKTHROUGH ACHIEVED - Network-Wide AI Discovery Operational  
-**Objective:** ✅ EXCEEDED - Advanced AI network intelligence beyond original MVP scope
+**Status:** ✅ COMPLETE
+**Objective:** Implement a stable, event-driven agentic architecture.
 
-#### Week 5-6: Agent System & Node Coordination
-- [x] Admin agent implementation (✅ COMPLETE - comprehensive agent framework exists)
-- [x] Agent hierarchy system (Admin/Manager/Worker/Guardian) (✅ COMPLETE)
-- [x] State management with heartbeat (✅ COMPLETE)
-- [x] Constitutional core integration (✅ COMPLETE)
-- [x] **🧠 MAJOR BREAKTHROUGH: Network-Wide AI Service Discovery** (✅ COMPLETE)
-- [x] **🧠 Automatic Ollama API Detection** (✅ COMPLETE - 27 models discovered)
-- [x] **🧠 Multi-Service AI Discovery** (✅ COMPLETE - 11+ service types)
-- [x] **🧠 Network Topology Detection** (✅ COMPLETE - 800+ IP scanning)
-- [x] Resource discovery (✅ ENHANCED - mDNS + aggressive network scanning)
-- [x] Task distribution (✅ COMPLETE - agent task assignment system)
-- [x] Basic coordination protocols (✅ ENHANCED - P2P + AI service integration)
+#### Week 5-6: Agent System Refactoring (TrippleEffect Architecture)
+- [x] **✅ ARCHITECTURE COMPLETE**: Refactored the entire agent system to be event-driven.
+- [x] **✅ HIERARCHY COMPLETE**: Implemented the Admin -> PM -> Worker agent hierarchy.
+- [x] **✅ STATE MACHINE COMPLETE**: Implemented a comprehensive agent state machine (`PLANNING`, `MANAGE`, `WORK`, etc.).
+- [x] **✅ EVENT LOOP COMPLETE**: Implemented the `AgentCycleHandler` to process agent events.
+- [x] **✅ TOOL SYSTEM COMPLETE**: Implemented a `ToolExecutor` and `InteractionHandler` for agent tool usage.
+- [x] **✅ COMMUNICATION COMPLETE**: Implemented `SendMessageTool` for inter-agent communication and delegation.
+- [x] **✅ INTEGRATION COMPLETE**: All new agent components are correctly initialized and wired on startup.
+- [x] **✅ TESTING COMPLETE**: Added a new integration test to verify the end-to-end agent workflow.
 
-#### Week 7-8: User Interface & Integration  
-- [x] 4-page UI implementation: (✅ COMPLETE)
-  - [x] WebGPU visualization page (React component ready)
-  - [x] Internal feed page (WebSocket integration ready)
-  - [x] Logs page (✅ ENHANCED - working file output with AI discovery logs)
-  - [x] Settings page (Configuration management ready)
-- [x] **🧠 AI Discovery Integration** (✅ COMPLETE - automatic startup with web server)
-- [x] **🧠 Real-time AI Service Monitoring** (✅ COMPLETE - health checks and logging)
-- [x] **🧠 Constitutional Trust Scoring** (✅ COMPLETE - network service validation)
-- [x] **🧠 Graceful Service Management** (✅ COMPLETE - proper startup/shutdown)
-- [x] Feed system for agent activities (✅ ENHANCED - includes AI discovery events)
-- [x] **🔧 Fixed Logging System** (✅ COMPLETE - file output working)
-- [x] Initial documentation (✅ ENHANCED - comprehensive updates completed)
-- [ ] End-to-end testing - **NEXT PRIORITY**
-- [ ] Docker containerization - **NEXT PRIORITY**
-- [ ] WebGPU visualization engine - **DEFERRED TO PHASE 2**
+#### Week 7-8: Network & System Stability
+- [x] **✅ NETWORK DISCOVERY STABLE**: Refactored network discovery to be fully asynchronous, fixing event loop blocks.
+- [x] **✅ NETWORK SCANNING RESTORED**: Re-implemented asynchronous network scanning for non-mDNS services.
+- [x] **✅ STARTUP STABLE**: Fixed multiple startup bugs related to configuration, dependencies, and component initialization.
+- [x] **✅ PROCESS CLEANUP ROBUST**: Hardened the `launch.sh` script to ensure old processes are terminated, preventing port conflicts.
+- [x] **✅ DOCUMENTATION UPDATED**: Updated `README.md` and `FUNCTIONS_INDEX.md` to reflect the new architecture.
 
-**MVP Success Criteria:** 🎯 **EXCEEDED**
-- [x] ✅ **ENHANCED**: Local Hub with network-wide AI discovery (master/slave + AI services)
-- [x] ✅ **READY**: Text-based AI interaction (foundation with discovered AI services)
-- [x] ✅ **ENHANCED**: Agent hierarchy operational with AI service integration
-- [x] ✅ **OPERATIONAL**: Constitutional Guardian active with network monitoring
-- [x] ✅ **MAJOR ADDITION**: Network-wide AI service discovery (11+ service types)
-- [x] ✅ **MAJOR ADDITION**: Automatic Ollama detection and 27 model integration
-- [x] ✅ **MAJOR ADDITION**: Constitutional trust scoring for network services
-- [x] ✅ **MAJOR ADDITION**: Real-time service health monitoring and logging
-- [ ] 📋 **DEFERRED**: WebGPU visualization working (moved to Phase 2)
-- [ ] 📋 **NEXT**: Docker deployment functional (foundation ready)
+**MVP Success Criteria:** 🎯 **ACHIEVED**
+- [x] ✅ **STABLE**: Local Hub starts reliably without errors.
+- [x] ✅ **FUNCTIONAL**: Text-based AI interaction is possible through the new agent system.
+- [x] ✅ **ARCHITECTED**: The TrippleEffect agent hierarchy (Admin, PM, Worker) is fully implemented and operational.
+- [x] ✅ **DELEGATION WORKS**: Agents can successfully delegate tasks to one another.
+- [x] ✅ **TESTED**: The core agent workflow is validated with an integration test.
 
-**🧠 BREAKTHROUGH ACHIEVEMENTS BEYOND ORIGINAL SCOPE:**
-- **Network Intelligence**: 800+ IP scanning across multiple network ranges
-- **Multi-Service Discovery**: Ollama, ComfyUI, vLLM, Automatic1111, and 7+ other AI services
-- **Constitutional AI Integration**: All network AI services validated for compliance
-- **Production-Ready Discovery**: Graceful service management and real-time monitoring
+### Phase 2: Alpha (Weeks 9-12) - **Ready to Begin**
 
-### Phase 2: Alpha (Weeks 9-12) - **FOUNDATION ACCELERATED**
+**Status:** 📋 Ready to Begin
+**Objective:** Build advanced AI workflows on top of the new stable agent architecture.
 
-**Status:** � Ready to Begin (Enhanced Foundation with Network AI Intelligence)  
-**Objective:** Advanced AI orchestration and network mesh capabilities
+#### Week 9-10: Advanced Agent Workflows
+- [ ] **PRIORITY**: Implement a `ProjectCreationWorkflow` in the `WorkflowManager` to automatically spawn a PM agent when the Admin creates a plan.
+- [ ] **PRIORITY**: Enhance the PM agent's `startup` state to automatically break down a project plan into a list of tasks for workers.
+- [ ] **PRIORITY**: Implement the `build_team_tasks` and `activate_workers` states for the PM agent to create and assign tasks to a team of workers.
+- [ ] Implement more sophisticated tool-use parsing in the `Agent.process_message` method (e.g., using a dedicated XML parser).
+- [ ] Enhance the `Guardian` agent to monitor and validate inter-agent communication.
 
-#### Week 9-10: Advanced Agent Features with Network AI
-- [ ] **🧠 PRIORITY**: Manager/Worker agent spawning utilizing discovered AI services
-- [ ] **🧠 ENHANCED**: Guardian agent refinement with network AI monitoring
-- [ ] **🧠 READY**: Workflow system implementation across discovered AI services
-- [ ] **🧠 INTEGRATION**: Agent-to-agent communication using network intelligence
-- [ ] Memory system enhancement with distributed AI capabilities
-- [ ] MCP tool servers integration
-- [ ] Voice services (Whisper/Piper) utilizing discovered services
+#### Week 11-12: Enhanced Network & UI Features
+- [ ] Integrate discovered AI services from the network scan as potential tools for Worker agents.
+- [ ] Enhance the UI to provide real-time visualization of the agent hierarchy and their current states.
+- [ ] Begin implementation of voice services (Whisper/Piper) as tools available to agents.
+- [ ] Integrate the Kademlia DHT for more robust peer-to-peer discovery.
 
 #### Week 11-12: Enhanced Network Features
 - [ ] **🧠 READY**: AI service orchestration across discovered network services

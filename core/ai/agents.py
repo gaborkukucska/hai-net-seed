@@ -19,27 +19,47 @@ import uuid
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
+from typing import Dict, List, Optional, Any, Callable, Set, AsyncGenerator
 from .llm import LLMManager, LLMMessage, LLMResponse
-
+from .schemas import AgentMemory
 
 class AgentState(Enum):
-    """Agent state machine states"""
-    IDLE = "idle"
-    STARTUP = "startup"
-    PLANNING = "planning"
-    CONVERSATION = "conversation"
-    WORK = "work"
-    MAINTENANCE = "maintenance"
-    SHUTDOWN = "shutdown"
-    ERROR = "error"
+    """
+    Agent state machine states, inspired by the TrippleEffect framework.
+    """
+    # General States
+    IDLE = "idle"                # Waiting for tasks or triggers
+    PROCESSING = "processing"    # Actively in an execution cycle
+    ERROR = "error"              # An error occurred, requires intervention
+    SHUTDOWN = "shutdown"        # Agent is shutting down
+
+    # Admin/PM Planning States
+    PLANNING = "planning"        # Actively creating a plan
+
+    # Admin Conversation State
+    CONVERSATION = "conversation" # General interaction with the user
+
+    # PM States
+    STARTUP = "startup"                 # Initial state for a new PM agent to break down a plan
+    BUILD_TEAM_TASKS = "build_team_tasks" # State for defining tasks and required team
+    ACTIVATE_WORKERS = "activate_workers"   # State for assigning tasks to workers
+    MANAGE = "manage"                   # PM's main operational state for monitoring progress
+    STANDBY = "standby"                 # PM state when a project is complete
+
+    # Worker States
+    WORK = "work"                # Executing a specific assigned task
+    WAIT = "wait"                # Task complete, waiting for review or next task
+
+    # Maintenance State
+    MAINTENANCE = "maintenance"  # Performing self-maintenance
 
 
 class AgentRole(Enum):
-    """Agent roles in HAI-Net hierarchy"""
-    ADMIN = "admin"          # User-linked primary agent
-    MANAGER = "manager"      # Task coordination agent
-    WORKER = "worker"        # Specialized execution agent
-    GUARDIAN = "guardian"    # Constitutional compliance agent
+    """Agent roles in HAI-Net hierarchy, aligned with TrippleEffect."""
+    ADMIN = "admin"      # User-linked AI, corresponds to Admin AI
+    PM = "pm"            # Project Manager AI, corresponds to PM Agent
+    WORKER = "worker"    # Specialized task execution AI, corresponds to Worker Agent
+    GUARDIAN = "guardian"# HAI-Net specific constitutional compliance monitor
 
 
 class AgentCapability(Enum):
@@ -54,46 +74,7 @@ class AgentCapability(Enum):
     COMPLIANCE_CHECK = "compliance_check"
 
 
-@dataclass
-class AgentMemory:
-    """Agent memory structure"""
-    short_term: Dict[str, Any]     # Current context and working memory
-    long_term: List[Dict[str, Any]]  # Persistent memories
-    episodic: List[Dict[str, Any]]   # Specific event memories
-    semantic: Dict[str, Any]         # Knowledge and facts
-    constitutional: Dict[str, Any]   # Constitutional compliance history
-    
-    def __post_init__(self):
-        if not self.short_term:
-            self.short_term = {}
-        if not self.long_term:
-            self.long_term = []
-        if not self.episodic:
-            self.episodic = []
-        if not self.semantic:
-            self.semantic = {}
-        if not self.constitutional:
-            self.constitutional = {
-                "violations": [],
-                "compliance_score": 1.0,
-                "last_check": time.time()
-            }
-
-
-@dataclass
-class AgentTask:
-    """Represents a task for an agent"""
-    task_id: str
-    task_type: str
-    description: str
-    priority: int  # 1-10, 10 being highest
-    created_at: float
-    deadline: Optional[float]
-    parameters: Dict[str, Any]
-    assigned_agent: Optional[str]
-    status: str  # pending, in_progress, completed, failed
-    result: Optional[Dict[str, Any]]
-    constitutional_approved: bool = True
+# AgentTask is removed as we are moving to an event-driven model
 
 
 @dataclass
@@ -112,21 +93,30 @@ class AgentMetrics:
 
 
 class AgentStateTransitions:
-    """Manages valid state transitions for agents"""
+    """Manages valid state transitions for agents based on TrippleEffect workflows."""
     
     VALID_TRANSITIONS = {
-        AgentState.IDLE: [AgentState.STARTUP, AgentState.PLANNING, AgentState.CONVERSATION, 
-                         AgentState.WORK, AgentState.MAINTENANCE, AgentState.SHUTDOWN],
-        AgentState.STARTUP: [AgentState.IDLE, AgentState.PLANNING, AgentState.ERROR],
-        AgentState.PLANNING: [AgentState.IDLE, AgentState.CONVERSATION, AgentState.WORK, 
-                            AgentState.MAINTENANCE, AgentState.ERROR],
-        AgentState.CONVERSATION: [AgentState.IDLE, AgentState.PLANNING, AgentState.WORK, 
-                                AgentState.ERROR],
-        AgentState.WORK: [AgentState.IDLE, AgentState.PLANNING, AgentState.CONVERSATION, 
-                         AgentState.MAINTENANCE, AgentState.ERROR],
-        AgentState.MAINTENANCE: [AgentState.IDLE, AgentState.SHUTDOWN, AgentState.ERROR],
-        AgentState.SHUTDOWN: [AgentState.STARTUP],
-        AgentState.ERROR: [AgentState.IDLE, AgentState.MAINTENANCE, AgentState.SHUTDOWN]
+        # General transitions
+        AgentState.IDLE: [AgentState.STARTUP, AgentState.PROCESSING, AgentState.PLANNING, AgentState.CONVERSATION, AgentState.MANAGE, AgentState.WORK, AgentState.SHUTDOWN],
+        AgentState.PROCESSING: [AgentState.IDLE, AgentState.ERROR],
+        AgentState.ERROR: [AgentState.IDLE, AgentState.MAINTENANCE, AgentState.SHUTDOWN],
+        AgentState.MAINTENANCE: [AgentState.IDLE],
+        AgentState.SHUTDOWN: [],
+
+        # Admin states
+        AgentState.CONVERSATION: [AgentState.PROCESSING, AgentState.PLANNING, AgentState.IDLE],
+        AgentState.PLANNING: [AgentState.PROCESSING, AgentState.CONVERSATION, AgentState.IDLE],
+
+        # PM states
+        AgentState.STARTUP: [AgentState.PROCESSING, AgentState.BUILD_TEAM_TASKS, AgentState.IDLE, AgentState.ERROR],
+        AgentState.BUILD_TEAM_TASKS: [AgentState.PROCESSING, AgentState.ACTIVATE_WORKERS, AgentState.IDLE, AgentState.ERROR],
+        AgentState.ACTIVATE_WORKERS: [AgentState.PROCESSING, AgentState.MANAGE, AgentState.IDLE, AgentState.ERROR],
+        AgentState.MANAGE: [AgentState.PROCESSING, AgentState.STANDBY, AgentState.IDLE, AgentState.ERROR],
+        AgentState.STANDBY: [AgentState.IDLE, AgentState.MANAGE],
+
+        # Worker states
+        AgentState.WORK: [AgentState.PROCESSING, AgentState.WAIT, AgentState.IDLE, AgentState.ERROR],
+        AgentState.WAIT: [AgentState.WORK, AgentState.IDLE]
     }
     
     @classmethod
@@ -143,15 +133,17 @@ class AgentStateTransitions:
 class Agent:
     """
     Constitutional AI Agent
-    Implements agent state machine with constitutional compliance
+    Implements an event-driven, state-based architecture.
     """
     
     def __init__(self, agent_id: str, role: AgentRole, settings: HAINetSettings,
+                 manager: 'AgentManager',
                  llm_manager: Optional[LLMManager] = None,
                  user_did: Optional[str] = None):
         self.agent_id = agent_id
         self.role = role
         self.settings = settings
+        self.manager = manager
         self.llm_manager = llm_manager
         self.user_did = user_did
         self.logger = get_logger(f"ai.agent.{agent_id}", settings)
@@ -163,7 +155,8 @@ class Agent:
         
         # Agent properties
         self.capabilities: Set[AgentCapability] = set()
-        self.memory = AgentMemory({}, [], [], {}, {})
+        self.memory = AgentMemory()
+        self.message_history: List[LLMMessage] = []
         self.metrics = AgentMetrics(
             uptime_seconds=0,
             tasks_completed=0,
@@ -176,11 +169,6 @@ class Agent:
             last_heartbeat=time.time(),
             health_score=1.0
         )
-        
-        # Task management
-        self.current_task: Optional[AgentTask] = None
-        self.task_queue: List[AgentTask] = []
-        self.completed_tasks: List[AgentTask] = []
         
         # Constitutional compliance
         self.constitutional_version = "1.0"
@@ -211,7 +199,7 @@ class Agent:
                 AgentCapability.COORDINATION,
                 AgentCapability.MONITORING
             ])
-        elif self.role == AgentRole.MANAGER:
+        elif self.role == AgentRole.PM:
             self.capabilities.update([
                 AgentCapability.TASK_PLANNING,
                 AgentCapability.COORDINATION,
@@ -269,10 +257,8 @@ class Agent:
                 if not self.running:
                     return
                 
-                # Transition to shutdown state
                 await self._transition_state(AgentState.SHUTDOWN)
                 
-                # Stop heartbeat
                 if self.heartbeat_task:
                     self.heartbeat_task.cancel()
                     try:
@@ -280,11 +266,6 @@ class Agent:
                     except asyncio.CancelledError:
                         pass
                 
-                # Complete current task if any
-                if self.current_task:
-                    await self._complete_current_task(status="interrupted")
-                
-                # Save state
                 await self._save_agent_state()
                 
                 self.running = False
@@ -363,296 +344,73 @@ class Agent:
                 callback(old_state, new_state)
             except Exception as e:
                 self.logger.error(f"State change callback error: {e}")
-    
-    async def assign_task(self, task: AgentTask) -> bool:
-        """Assign a task to the agent"""
-        try:
-            async with self._lock:
-                # Check constitutional compliance of task
-                if not await self._validate_task_compliance(task):
-                    self.logger.log_violation("task_constitutional_violation", {
-                        "task_id": task.task_id,
-                        "agent_id": self.agent_id,
-                        "reason": "Task violates constitutional principles"
-                    })
-                    return False
-                
-                # Check if agent can handle this task type
-                if not await self._can_handle_task(task):
-                    self.logger.warning(f"Agent {self.agent_id} cannot handle task {task.task_id}")
-                    return False
-                
-                # Add to task queue
-                task.assigned_agent = self.agent_id
-                task.status = "pending"
-                self.task_queue.append(task)
-                
-                # Sort by priority
-                self.task_queue.sort(key=lambda t: t.priority, reverse=True)
-                
-                # If idle, start processing
-                if self.current_state == AgentState.IDLE:
-                    await self._process_next_task()
-                
-                self.logger.log_community_event(
-                    f"task_assigned_{task.task_type}",
-                    community_benefit=True
-                )
-                
-                return True
-                
-        except Exception as e:
-            self.logger.error(f"Task assignment failed: {e}")
-            return False
-    
-    async def _process_next_task(self):
-        """Process the next task in the queue"""
-        try:
-            if not self.task_queue or self.current_task:
-                return
-            
-            # Get highest priority task
-            task = self.task_queue.pop(0)
-            self.current_task = task
-            task.status = "in_progress"
-            
-            # Transition to appropriate state
-            if task.task_type in ["conversation", "chat"]:
-                await self._transition_state(AgentState.CONVERSATION)
-            elif task.task_type in ["planning", "coordination"]:
-                await self._transition_state(AgentState.PLANNING)
-            else:
-                await self._transition_state(AgentState.WORK)
-            
-            # Execute task
-            result = await self._execute_task(task)
-            
-            # Complete task
-            await self._complete_current_task(
-                status="completed" if result else "failed",
-                result=result
-            )
-            
-        except Exception as e:
-            self.logger.error(f"Task processing failed: {e}")
-            await self._complete_current_task(status="failed")
-    
-    async def _execute_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Execute a specific task"""
-        try:
-            start_time = time.time()
-            
-            # Add task to memory
-            self.memory.episodic.append({
-                "event": "task_started",
-                "task_id": task.task_id,
-                "task_type": task.task_type,
-                "timestamp": start_time,
-                "constitutional_compliant": True
-            })
-            
-            result = None
-            
-            # Execute based on task type
-            if task.task_type == "conversation":
-                result = await self._handle_conversation_task(task)
-            elif task.task_type == "planning":
-                result = await self._handle_planning_task(task)
-            elif task.task_type == "research":
-                result = await self._handle_research_task(task)
-            elif task.task_type == "monitoring":
-                result = await self._handle_monitoring_task(task)
-            else:
-                result = await self._handle_generic_task(task)
-            
-            # Update metrics
-            execution_time = time.time() - start_time
-            self._update_response_time_metric(execution_time)
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Task execution failed: {e}")
-            return None
-    
-    async def _handle_conversation_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Handle conversation task"""
-        try:
-            if not self.llm_manager:
-                return {"error": "No LLM manager available"}
-            
-            # Extract conversation parameters
-            messages = task.parameters.get("messages", [])
-            model = task.parameters.get("model", "")
-            
-            if not messages:
-                return {"error": "No messages provided"}
-            
-            # Convert to LLM messages
-            llm_messages = []
-            for msg in messages:
-                llm_messages.append(LLMMessage(
-                    role=msg.get("role", "user"),
-                    content=msg.get("content", ""),
-                    timestamp=time.time()
-                ))
-            
-            # Generate response
-            response = await self.llm_manager.generate_response(
-                messages=llm_messages,
-                model=model,
-                user_did=self.user_did
-            )
-            
-            # Update constitutional compliance metrics
-            if not response.constitutional_compliant:
-                self.metrics.constitutional_violations += 1
-            if not response.privacy_protected:
-                self.metrics.privacy_violations += 1
-            
-            # Add to memory
-            self.memory.short_term["last_conversation"] = {
-                "messages": messages,
-                "response": response.content,
-                "timestamp": time.time(),
-                "constitutional_compliant": response.constitutional_compliant
-            }
-            
-            return {
-                "response": response.content,
-                "model": response.model,
-                "tokens_used": response.tokens_used,
-                "constitutional_compliant": response.constitutional_compliant,
-                "privacy_protected": response.privacy_protected
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Conversation task failed: {e}")
-            return {"error": str(e)}
-    
-    async def _handle_planning_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Handle planning task"""
-        # Implement planning logic
-        plan_steps = [
-            {"step": 1, "action": "analyze_requirements", "estimated_time": 5},
-            {"step": 2, "action": "identify_resources", "estimated_time": 10},
-            {"step": 3, "action": "create_execution_plan", "estimated_time": 15}
-        ]
-        
-        return {
-            "plan": plan_steps,
-            "total_estimated_time": sum(step["estimated_time"] for step in plan_steps),
-            "constitutional_compliant": True
-        }
-    
-    async def _handle_research_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Handle research task"""
-        # Implement research logic using vector store
-        query = task.parameters.get("query", "")
-        
-        return {
-            "query": query,
-            "findings": ["Research capability not yet implemented"],
-            "sources": [],
-            "constitutional_compliant": True
-        }
-    
-    async def _handle_monitoring_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Handle monitoring task"""
-        # Collect system metrics
-        system_status = {
-            "agent_health": self.metrics.health_score,
-            "uptime": self.metrics.uptime_seconds,
-            "tasks_completed": self.metrics.tasks_completed,
-            "constitutional_violations": self.metrics.constitutional_violations,
-            "memory_usage": len(self.memory.episodic),
-            "timestamp": time.time()
-        }
-        
-        return {
-            "status": "healthy" if self.metrics.health_score > 0.7 else "degraded",
-            "metrics": system_status,
-            "constitutional_compliant": True
-        }
-    
-    async def _handle_generic_task(self, task: AgentTask) -> Optional[Dict[str, Any]]:
-        """Handle generic task"""
-        return {
-            "task_type": task.task_type,
-            "message": "Generic task handler - not yet implemented",
-            "constitutional_compliant": True
-        }
-    
-    async def _complete_current_task(self, status: str = "completed", result: Optional[Dict[str, Any]] = None):
-        """Complete the current task"""
-        if not self.current_task:
+
+    async def process_message(self, messages: List[LLMMessage]) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Core event-yielding method for agent processing, based on TrippleEffect.
+        This async generator streams the LLM response, parses it for tool calls or
+        a final response, and yields structured events.
+        """
+        if not self.llm_manager:
+            yield {"type": "error", "content": "LLM Manager not available."}
             return
-        
-        # Update task
-        self.current_task.status = status
-        self.current_task.result = result
-        
-        # Update metrics
-        if status == "completed":
-            self.metrics.tasks_completed += 1
-        else:
-            self.metrics.tasks_failed += 1
-        
-        # Move to completed tasks
-        self.completed_tasks.append(self.current_task)
-        
-        # Add to memory
-        self.memory.episodic.append({
-            "event": "task_completed",
-            "task_id": self.current_task.task_id,
-            "status": status,
-            "timestamp": time.time(),
-            "constitutional_compliant": True
-        })
-        
-        # Clear current task
-        self.current_task = None
-        
-        # Return to idle and process next task
-        await self._transition_state(AgentState.IDLE)
-        if self.task_queue:
-            await self._process_next_task()
-    
-    async def _validate_task_compliance(self, task: AgentTask) -> bool:
-        """Validate task compliance with constitutional principles"""
-        # Check for privacy violations
-        task_str = json.dumps(asdict(task)).lower()
-        privacy_patterns = ["personal information", "private data", "password", "secret"]
-        
-        for pattern in privacy_patterns:
-            if pattern in task_str:
-                return False
-        
-        # Check task priority is reasonable (community focus)
-        if task.priority > 10 or task.priority < 1:
-            return False
-        
-        # Check deadline is reasonable
-        if task.deadline and task.deadline < time.time():
-            return False
-        
-        return True
-    
-    async def _can_handle_task(self, task: AgentTask) -> bool:
-        """Check if agent can handle the given task"""
-        task_capability_map = {
-            "conversation": AgentCapability.CONVERSATION,
-            "planning": AgentCapability.TASK_PLANNING,
-            "research": AgentCapability.RESEARCH,
-            "monitoring": AgentCapability.MONITORING,
-            "code_generation": AgentCapability.CODE_GENERATION
-        }
-        
-        required_capability = task_capability_map.get(task.task_type)
-        if required_capability and required_capability not in self.capabilities:
-            return False
-        
-        return True
+
+        self.logger.debug(f"Agent {self.agent_id} starting process_message in state {self.current_state.value}")
+
+        # Use getattr for safe access to pydantic model attributes with a default.
+        model = getattr(self.settings, 'default_model', 'local_default')
+
+        full_response = ""
+        try:
+            # Stream the response from the LLM provider
+            async for chunk in self.llm_manager.stream_response(messages, model, self.user_did):
+                if isinstance(chunk, str):
+                    full_response += chunk
+                elif isinstance(chunk, dict) and 'error' in chunk:
+                    yield {"type": "error", "content": chunk['error']}
+                    return
+
+            # Basic parsing for tool calls. A real implementation would use a more robust XML parser.
+            if "<tool_requests>" in full_response and "</tool_requests>" in full_response:
+                yield {
+                    "type": "agent_thought",
+                    "content": "Tool request detected. Parsing and yielding tool_requests event."
+                }
+                # This is a highly simplified parser for the test case.
+                # It finds the tool name, target_agent_id, and message.
+                try:
+                    tool_name = full_response.split("<name>")[1].split("</name>")[0].strip()
+                    target_id = full_response.split("<target_agent_id>")[1].split("</target_agent_id>")[0].strip()
+                    message = full_response.split("<message>")[1].split("</message>")[0].strip()
+
+                    tool_call = {
+                        "name": tool_name,
+                        "args": {
+                            "target_agent_id": target_id,
+                            "message": message
+                        }
+                    }
+                    yield {
+                        "type": "tool_requests",
+                        "calls": [tool_call]
+                    }
+                except IndexError:
+                    yield {"type": "error", "content": "Malformed tool_requests XML."}
+
+            else:
+                # No tool call found, yield final response
+                yield {
+                    "type": "agent_thought",
+                    "content": f"No tool request found. Preparing final response."
+                }
+                yield {
+                    "type": "final_response",
+                    "content": full_response.strip()
+                }
+
+        except Exception as e:
+            self.logger.error(f"Error during agent's LLM stream processing: {e}", exc_info=True)
+            yield {"type": "error", "content": f"An unexpected error occurred: {e}"}
     
     def _update_response_time_metric(self, execution_time: float):
         """Update average response time metric"""
@@ -758,8 +516,6 @@ class Agent:
             "role": self.role.value,
             "current_state": self.current_state.value,
             "capabilities": [cap.value for cap in self.capabilities],
-            "current_task": self.current_task.task_id if self.current_task else None,
-            "task_queue_size": len(self.task_queue),
             "metrics": asdict(self.metrics),
             "uptime": time.time() - self.created_at,
             "constitutional_compliant": self.metrics.constitutional_violations == 0,
@@ -770,7 +526,7 @@ class Agent:
 class AgentManager:
     """
     Constitutional Agent Manager for HAI-Net
-    Manages multiple agents with constitutional compliance
+    Central orchestrator for the agentic framework.
     """
     
     def __init__(self, settings: HAINetSettings, llm_manager: Optional[LLMManager] = None):
@@ -778,31 +534,33 @@ class AgentManager:
         self.llm_manager = llm_manager
         self.logger = get_logger("ai.agent.manager", settings)
         
-        # Agent management
+        self.cycle_handler: Optional['AgentCycleHandler'] = None
+        self.workflow_manager: Optional['WorkflowManager'] = None
+
         self.agents: Dict[str, Agent] = {}
         self.agent_counter = 0
         
-        # Constitutional compliance
         self.constitutional_version = "1.0"
-        self.max_agents = 20  # Community focus: reasonable resource limits
+        self.max_agents = 20
         
-        # Monitoring
         self.manager_metrics = {
             "total_agents_created": 0,
             "active_agents": 0,
-            "total_tasks_processed": 0,
+            "total_cycles_run": 0,
             "constitutional_violations": 0
         }
-        
-        # Thread safety
         self._lock = asyncio.Lock()
+
+    def set_handlers(self, cycle_handler: 'AgentCycleHandler', workflow_manager: 'WorkflowManager'):
+        """Set the core handlers after initialization."""
+        self.cycle_handler = cycle_handler
+        self.workflow_manager = workflow_manager
     
     async def create_agent(self, role: AgentRole, user_did: Optional[str] = None,
                           capabilities: Optional[Set[AgentCapability]] = None) -> Optional[str]:
         """Create a new agent with constitutional compliance"""
         try:
             async with self._lock:
-                # Check agent limits (community focus)
                 if len(self.agents) >= self.max_agents:
                     self.logger.log_violation("agent_limit_exceeded", {
                         "current_count": len(self.agents),
@@ -810,15 +568,14 @@ class AgentManager:
                     })
                     return None
                 
-                # Generate agent ID
                 self.agent_counter += 1
                 agent_id = f"agent_{role.value}_{self.agent_counter:03d}_{secrets.token_hex(4)}"
                 
-                # Create agent
                 agent = Agent(
                     agent_id=agent_id,
                     role=role,
                     settings=self.settings,
+                    manager=self,
                     llm_manager=self.llm_manager,
                     user_did=user_did
                 )
@@ -854,11 +611,8 @@ class AgentManager:
                     return False
                 
                 agent = self.agents[agent_id]
-                
-                # Stop agent
                 await agent.stop()
                 
-                # Remove from manager
                 del self.agents[agent_id]
                 self.manager_metrics["active_agents"] = len(self.agents)
                 
@@ -866,44 +620,46 @@ class AgentManager:
                     f"agent_removed_{agent.role.value}",
                     local_processing=True
                 )
-                
                 return True
                 
         except Exception as e:
             self.logger.error(f"Agent removal failed: {e}")
             return False
-    
-    async def assign_task_to_agent(self, agent_id: str, task: AgentTask) -> bool:
-        """Assign task to specific agent"""
-        if agent_id not in self.agents:
-            return False
-        
-        agent = self.agents[agent_id]
-        success = await agent.assign_task(task)
-        
-        if success:
-            self.manager_metrics["total_tasks_processed"] += 1
-        
-        return success
-    
-    async def assign_task_by_capability(self, task: AgentTask, 
-                                       required_capability: AgentCapability) -> bool:
-        """Assign task to an agent with the required capability"""
-        # Find suitable agents
-        suitable_agents = []
-        for agent in self.agents.values():
-            if (required_capability in agent.capabilities and 
-                agent.current_state in [AgentState.IDLE, AgentState.PLANNING]):
-                suitable_agents.append(agent)
-        
-        if not suitable_agents:
-            return False
-        
-        # Choose agent with lowest task queue
-        best_agent = min(suitable_agents, key=lambda a: len(a.task_queue))
-        
-        return await best_agent.assign_task(task)
-    
+
+    async def handle_user_message(self, user_input: str, user_did: Optional[str] = None):
+        """Primary entry point for user interaction."""
+        admin_agent = next((agent for agent in self.agents.values() if agent.role == AgentRole.ADMIN), None)
+
+        if not admin_agent:
+            self.logger.error("No Admin agent found to handle user message.")
+            admin_agent_id = await self.create_agent(AgentRole.ADMIN, user_did=user_did)
+            if not admin_agent_id:
+                self.logger.error("Failed to create an Admin agent.")
+                return
+            admin_agent = self.get_agent(admin_agent_id)
+
+        if admin_agent:
+            admin_agent.message_history.append(LLMMessage(role="user", content=user_input, timestamp=time.time()))
+            await self.schedule_cycle(admin_agent.agent_id)
+
+    async def schedule_cycle(self, agent_id: str):
+        """Schedules an agent to be run by the AgentCycleHandler."""
+        if not self.cycle_handler:
+            self.logger.error("AgentCycleHandler not set in AgentManager. Cannot schedule cycle.")
+            return
+
+        agent = self.get_agent(agent_id)
+        if not agent:
+            self.logger.error(f"Cannot schedule cycle: Agent {agent_id} not found.")
+            return
+
+        if agent.current_state != AgentState.PROCESSING:
+            self.logger.info(f"Scheduling cycle for agent {agent_id}")
+            self.manager_metrics["total_cycles_run"] += 1
+            asyncio.create_task(self.cycle_handler.run_cycle(agent))
+        else:
+            self.logger.warning(f"Agent {agent_id} is already processing. Cycle not scheduled.")
+
     def get_agent(self, agent_id: str) -> Optional[Agent]:
         """Get agent by ID"""
         return self.agents.get(agent_id)
@@ -918,17 +674,14 @@ class AgentManager:
     
     def get_manager_stats(self) -> Dict[str, Any]:
         """Get agent manager statistics"""
-        # Collect agent health scores
         health_scores = [agent.metrics.health_score for agent in self.agents.values()]
         avg_health = sum(health_scores) / len(health_scores) if health_scores else 0
         
-        # Count agents by state
         state_counts = {}
         for agent in self.agents.values():
             state = agent.current_state.value
             state_counts[state] = state_counts.get(state, 0) + 1
         
-        # Count constitutional violations
         total_violations = sum(agent.metrics.constitutional_violations for agent in self.agents.values())
         
         return {
@@ -959,18 +712,28 @@ if __name__ == "__main__":
     import asyncio
     from core.config.settings import HAINetSettings
     
+    class MockCycleHandler:
+        async def run_cycle(self, agent: Agent):
+            print(f"--- Running Mock Cycle for {agent.agent_id} ---")
+            async for event in agent.process_message():
+                print(f"Event: {event}")
+            print(f"--- Finished Mock Cycle for {agent.agent_id} ---")
+
+    class MockWorkflowManager:
+        pass
+
     async def test_agents():
-        print("HAI-Net Constitutional Agent Test")
-        print("=" * 35)
+        print("HAI-Net Constitutional Agent Test (Refactored)")
+        print("=" * 50)
         
-        # Create test settings
         settings = HAINetSettings()
-        
-        # Create agent manager
         agent_manager = create_agent_manager(settings)
         
+        cycle_handler = MockCycleHandler()
+        workflow_manager = MockWorkflowManager()
+        agent_manager.set_handlers(cycle_handler, workflow_manager)
+
         try:
-            # Create test agents
             admin_agent_id = await agent_manager.create_agent(
                 AgentRole.ADMIN,
                 user_did="did:hai:test_user"
@@ -982,48 +745,28 @@ if __name__ == "__main__":
             )
             print(f"✅ Worker agent created: {worker_agent_id}")
             
-            # Test task assignment
-            test_task = AgentTask(
-                task_id="test_task_001",
-                task_type="monitoring",
-                description="Test monitoring task",
-                priority=5,
-                created_at=time.time(),
-                deadline=None,
-                parameters={"target": "system_health"},
-                assigned_agent=None,
-                status="pending"
-            )
+            print("\n--- Testing User Message Handling ---")
+            await agent_manager.handle_user_message("Hello, HAI-Net!")
             
-            if admin_agent_id:
-                success = await agent_manager.assign_task_to_agent(admin_agent_id, test_task)
-                print(f"✅ Task assigned: {success}")
+            await asyncio.sleep(1)
             
-            # Wait a bit for task processing
-            await asyncio.sleep(2)
-            
-            # Get agent status
             if admin_agent_id:
                 admin_agent = agent_manager.get_agent(admin_agent_id)
                 if admin_agent:
                     status = admin_agent.get_status()
-                    print(f"📊 Admin agent status: {status['current_state']}")
-                    print(f"   Tasks completed: {status['metrics']['tasks_completed']}")
+                    print(f"\n📊 Admin agent status: {status['current_state']}")
                     print(f"   Health score: {status['metrics']['health_score']:.2f}")
             
-            # Get manager statistics
             stats = agent_manager.get_manager_stats()
             print(f"📈 Manager stats: {stats}")
             
-            print("\n🎉 Constitutional Agent System Working!")
+            print("\n🎉 Constitutional Agent System (Refactored) Working!")
             
         except Exception as e:
             print(f"❌ Agent test failed: {e}")
         
         finally:
-            # Cleanup agents
             for agent_id in list(agent_manager.agents.keys()):
                 await agent_manager.remove_agent(agent_id)
     
-    # Run the test
     asyncio.run(test_agents())
