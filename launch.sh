@@ -106,7 +106,19 @@ check_running_processes() {
     if pgrep -f "core.web.server" > /dev/null; then
         log_warning "HAI-Net web server is already running. Cleaning up..."
         pkill -f "core.web.server"
-        sleep 2 # Give it a moment to shut down
+
+        # Wait up to 5 seconds for the process to terminate
+        local countdown=5
+        while pgrep -f "core.web.server" > /dev/null; do
+            if [ $countdown -eq 0 ]; then
+                log_error "Failed to stop the old server process. Please stop it manually using 'pkill -f core.web.server'."
+                exit 1
+            fi
+            echo -n "."
+            sleep 1
+            countdown=$((countdown-1))
+        done
+        echo "" # Newline after the dots
         log_success "Cleanup complete."
     fi
     

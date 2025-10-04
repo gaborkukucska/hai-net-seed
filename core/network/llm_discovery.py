@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo
 import aiohttp
 from pathlib import Path
+import netifaces
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
@@ -148,7 +149,7 @@ class LLMDiscovery:
                 return True
 
             self.aiozc = AsyncZeroconf()
-            await self._register_local_ai_services()
+            await self._register_local_llm_service()
             
             self.browser = AsyncServiceBrowser(
                 self.aiozc.zeroconf,
@@ -158,6 +159,7 @@ class LLMDiscovery:
             
             self.running = True
             self.maintenance_task = asyncio.create_task(self._discovery_maintenance_loop())
+            asyncio.create_task(self._start_network_scanning())
             
             self.logger.log_decentralization_event("ai_discovery_started", local_processing=True)
             self.logger.info("🧠 HAI-Net comprehensive AI discovery started.")
@@ -195,6 +197,100 @@ class LLMDiscovery:
             
         except Exception as e:
             self.logger.error(f"Error stopping LLM discovery: {e}", exc_info=True)
+
+    async def _start_network_scanning(self):
+        """Asynchronously scans the local network for potential AI services."""
+        self.logger.info("Starting network scan for non-mDNS AI services...")
+        network_ranges = self._get_comprehensive_network_ranges()
+        tasks = []
+        for network_range in network_ranges:
+            # This is a simplified implementation assuming a /24 subnet
+            base_ip = ".".join(network_range.split('.')[:-1])
+            for i in range(1, 255):
+                ip = f"{base_ip}.{i}"
+                # Scan for Ollama on its default port
+                tasks.append(self._scan_ai_service(ip, 11434, "Ollama"))
+
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.logger.info("Network scan for AI services complete.")
+
+    def _get_comprehensive_network_ranges(self) -> List[str]:
+        """Gets a list of local network ranges to scan using netifaces."""
+        ranges = set()
+        try:
+            for interface in netifaces.interfaces():
+                ifaddresses = netifaces.ifaddresses(interface)
+                if netifaces.AF_INET in ifaddresses:
+                    for link in ifaddresses[netifaces.AF_INET]:
+                        ip = link.get('addr')
+                        if ip and not ip.startswith("127."):
+                            base_ip = ".".join(ip.split('.')[:-1])
+                            ranges.add(f"{base_ip}.0/24")
+        except Exception as e:
+            self.logger.error(f"Could not determine network ranges via netifaces: {e}")
+
+        if not ranges:
+            ranges.add("192.168.1.0/24") # Default fallback for common home networks
+
+        self.logger.debug(f"Network ranges to scan: {list(ranges)}")
+        return list(ranges)
+
+    async def _scan_ai_service(self, ip: str, port: int, service_name: str):
+        """Probes a single IP:port to see if it's a connectable service."""
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port),
+                timeout=1.5
+            )
+            writer.close()
+            await writer.wait_closed()
+
+            self.logger.info(f"Potential '{service_name}' service found at {ip}:{port}. Probing API.")
+            if service_name == "Ollama":
+                await self._probe_ollama_endpoint(ip, port)
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+            pass # This is expected for most IPs
+        except Exception as e:
+            self.logger.debug(f"Error scanning {ip}:{port}: {e}")
+
+    async def _probe_ollama_endpoint(self, ip: str, port: int):
+        """Probes a potential Ollama endpoint and registers it if valid."""
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                async with session.get(f"http://{ip}:{port}/api/tags") as response:
+                    if response.status == 200:
+                        self.logger.info(f"Confirmed Ollama service at {ip}:{port}. Registering as a node.")
+                        # Manually construct an LLMNode for the discovered service
+                        data = await response.json()
+                        models = [model["name"] for model in data.get("models", [])]
+
+                        node_id = f"ollama-scan-{ip.replace('.', '-')}"
+
+                        # Avoid duplicating if already found by mDNS
+                        async with self._lock:
+                            if node_id in self.discovered_llm_nodes:
+                                return
+
+                        llm_node = LLMNode(
+                            node_id=node_id,
+                            address=ip,
+                            port=port,
+                            provider_type=LLMProvider.OLLAMA,
+                            available_models=models,
+                            constitutional_version=self.constitutional_version,
+                            api_endpoint=f"http://{ip}:{port}",
+                            health_status='healthy',
+                            response_time_ms=100.0, # Placeholder
+                            load_level=0.0, # Placeholder
+                            trust_level=0.7, # Scanned nodes are reasonably trusted
+                            discovered_at=time.time(),
+                            last_seen=time.time(),
+                            capabilities={}
+                        )
+                        await self._add_discovered_llm_node(llm_node)
+
+        except Exception as e:
+            self.logger.debug(f"Failed to probe confirmed Ollama endpoint at {ip}:{port}: {e}")
     
     async def _register_local_llm_service(self) -> bool:
         """Register local LLM service if available."""
