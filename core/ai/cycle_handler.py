@@ -118,6 +118,14 @@ class AgentCycleHandler:
                     await self.workflow_manager.process_task_list_creation(agent, tasks)
                     break
 
+                elif event_type == "create_worker_requested":
+                    # PM requested to create a worker
+                    request = event.get("request", {})
+                    self.logger.info(f"Agent {agent.agent_id} requested worker creation for task: {request.get('task_id')}")
+                    await self.workflow_manager.process_worker_creation(agent, request)
+                    # The workflow manager will schedule the next cycle if needed
+                    break
+
                 elif event_type == "final_response":
                     content = event.get("content", "")
 

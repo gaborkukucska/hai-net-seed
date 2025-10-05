@@ -213,3 +213,37 @@ class ToolCallParser:
         except Exception as e:
             self.logger.error(f"Error extracting task list: {e}", category="parsing", function="extract_task_list")
             return None
+
+    def extract_create_worker_request(self, text: str) -> Optional[Dict[str, Any]]:
+        """
+        Extracts a request to create a worker agent.
+
+        Args:
+            text: The LLM output text
+
+        Returns:
+            Dict with worker details or None
+        """
+        if "<create_worker_request>" not in text or "</create_worker_request>" not in text:
+            return None
+
+        try:
+            start_idx = text.find("<create_worker_request>")
+            end_idx = text.find("</create_worker_request>") + len("</create_worker_request>")
+            xml_block = text[start_idx:end_idx]
+
+            root = ET.fromstring(xml_block)
+
+            request: Dict[str, Any] = {}
+
+            # Extract request elements
+            for child in root:
+                if child.text:
+                    request[child.tag] = child.text.strip()
+
+            # A task_id is mandatory for a worker request
+            return request if "task_id" in request else None
+
+        except Exception as e:
+            self.logger.error(f"Error extracting create_worker_request: {e}", category="parsing", function="extract_create_worker_request")
+            return None

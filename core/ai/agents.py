@@ -224,7 +224,7 @@ class Agent:
                     return True
                 
                 # Transition to startup state
-                await self._transition_state(AgentState.STARTUP)
+                await self.transition_state(AgentState.STARTUP)
                 
                 # Initialize agent
                 await self._initialize_agent()
@@ -233,7 +233,7 @@ class Agent:
                 self.heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                 
                 # Transition to idle state
-                await self._transition_state(AgentState.IDLE)
+                await self.transition_state(AgentState.IDLE)
                 
                 self.running = True
                 
@@ -246,7 +246,7 @@ class Agent:
                 
         except Exception as e:
             self.logger.error(f"Agent startup failed: {e}")  # type: ignore
-            await self._transition_state(AgentState.ERROR)
+            await self.transition_state(AgentState.ERROR)
             return False
     
     async def stop(self):
@@ -256,7 +256,7 @@ class Agent:
                 if not self.running:
                     return
                 
-                await self._transition_state(AgentState.SHUTDOWN)
+                await self.transition_state(AgentState.SHUTDOWN)
                 
                 if self.heartbeat_task:
                     self.heartbeat_task.cancel()
@@ -308,7 +308,7 @@ class Agent:
             user_consent=True
         )
     
-    async def _transition_state(self, new_state: AgentState):
+    async def transition_state(self, new_state: AgentState):
         """Transition to new state with validation"""
         if not AgentStateTransitions.is_valid_transition(self.current_state, new_state):
             raise ConstitutionalViolationError(
@@ -374,6 +374,7 @@ class Agent:
             # Parse for tool calls using robust XML parser
             parse_result = parser.parse_tool_calls(full_response)
             
+            # Priority 1: Check for tool calls
             if parse_result.get("success", False):
                 yield {
                     "type": "agent_thought",
@@ -383,34 +384,45 @@ class Agent:
                     "type": "tool_requests",
                     "calls": parse_result["tool_calls"]
                 }
-            else:
-                # Check for special workflow triggers (plan, task_list, etc.)
-                plan = parser.extract_plan(full_response)
-                if plan is not None:
-                    yield {
-                        "type": "agent_thought",
-                        "content": "Plan created. Triggering workflow."
-                    }
-                    yield {
-                        "type": "plan_created",
-                        "plan": plan
-                    }
-                
-                task_list = parser.extract_task_list(full_response)
-                if task_list is not None:
-                    yield {
-                        "type": "agent_thought",
-                        "content": "Task list created."
-                    }
-                    yield {
-                        "type": "task_list_created",
-                        "tasks": task_list
-                    }
-                
-                # No tool call or special trigger found, yield final response
+
+            # Priority 2: Check for a plan creation
+            elif (plan := parser.extract_plan(full_response)) is not None:
                 yield {
                     "type": "agent_thought",
-                    "content": f"No tool request found. Preparing final response."
+                    "content": "Plan created. Triggering workflow."
+                }
+                yield {
+                    "type": "plan_created",
+                    "plan": plan
+                }
+
+            # Priority 3: Check for a task list creation
+            elif (task_list := parser.extract_task_list(full_response)) is not None:
+                yield {
+                    "type": "agent_thought",
+                    "content": "Task list created."
+                }
+                yield {
+                    "type": "task_list_created",
+                    "tasks": task_list
+                }
+
+            # Priority 4: Check for a worker creation request
+            elif (worker_request := parser.extract_create_worker_request(full_response)) is not None:
+                yield {
+                    "type": "agent_thought",
+                    "content": "Worker creation requested."
+                }
+                yield {
+                    "type": "create_worker_requested",
+                    "request": worker_request
+                }
+
+            # Priority 5: Default to final response
+            else:
+                yield {
+                    "type": "agent_thought",
+                    "content": f"No tool request or special workflow trigger found. Preparing final response."
                 }
                 yield {
                     "type": "final_response",

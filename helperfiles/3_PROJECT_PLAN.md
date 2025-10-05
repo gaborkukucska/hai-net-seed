@@ -92,54 +92,44 @@ HAI-Net (Human-AI Network) is a decentralized, privacy-first framework for human
 - [x] API services and WebSocket client integration
 - [x] Real-time constitutional compliance monitoring
 
-### Phase 1: MVP (Weeks 5-8) - **COMPLETE** ✅
+### Phase 1: Core Workflow Implementation (In Progress)
 
-**Status:** ✅ COMPLETE
-**Objective:** Implement a stable, event-driven agentic architecture.
+**Status:** 🟡 In Progress
+**Objective:** Implement and test the core, automated, event-driven agent workflow.
 
-#### Week 5-6: Agent System Refactoring (TrippleEffect Architecture)
-- [x] **✅ ARCHITECTURE COMPLETE**: Refactored the entire agent system to be event-driven.
-- [x] **✅ HIERARCHY COMPLETE**: Implemented the Admin -> PM -> Worker agent hierarchy.
-- [x] **✅ STATE MACHINE COMPLETE**: Implemented a comprehensive agent state machine (`PLANNING`, `MANAGE`, `WORK`, etc.).
-- [x] **✅ EVENT LOOP COMPLETE**: Implemented the `AgentCycleHandler` to process agent events.
-- [x] **✅ TOOL SYSTEM COMPLETE**: Implemented a `ToolExecutor` and `InteractionHandler` for agent tool usage.
-- [x] **✅ COMMUNICATION COMPLETE**: Implemented `SendMessageTool` for inter-agent communication and delegation.
-- [x] **✅ INTEGRATION COMPLETE**: All new agent components are correctly initialized and wired on startup.
-- [x] **✅ TESTING COMPLETE**: Added a new integration test to verify the end-to-end agent workflow.
+#### Completed Tasks:
+- [x] **✅ ARCHITECTURE IMPLEMENTED**: Implemented the full, event-driven agent workflow based on the TrippleEffect architecture.
+- [x] **✅ AUTOMATED HIERARCHY**: The Admin -> PM -> Worker delegation chain is now fully automated.
+  - An Admin creating a `<plan>` automatically creates a PM agent.
+  - A PM in `startup` state creates a `<task_list>`.
+  - A PM in `build_team_tasks` state can request worker creation.
+- [x] **✅ STATE MACHINE FUNCTIONAL**: The agent state machine (`PLANNING`, `STARTUP`, `BUILD_TEAM_TASKS`, `ACTIVATE_WORKERS`, `WORK`) is functional and drives the workflow.
+- [x] **✅ EVENT LOOP FUNCTIONAL**: The `AgentCycleHandler` correctly processes events (`plan_created`, `task_list_created`, `create_worker_requested`) to trigger workflows.
+- [x] **✅ COMMUNICATION ENABLED**: The `SendMessageTool` is implemented, allowing for delegation from PM to Worker agents.
+- [x] **✅ END-TO-END TEST CREATED**: A new integration test (`tests/test_automated_workflow.py`) has been created to validate the entire automated workflow.
+- [x] **✅ BUILD FIX**: Corrected a critical error in the frontend build process by renaming `web/templates` to `web/public`.
 
-#### Week 7-8: Network & System Stability
-- [x] **✅ NETWORK DISCOVERY STABLE**: Refactored network discovery to be fully asynchronous, fixing event loop blocks.
-- [x] **✅ NETWORK SCANNING RESTORED**: Re-implemented asynchronous network scanning for non-mDNS services.
-- [x] **✅ STARTUP STABLE**: Fixed multiple startup bugs related to configuration, dependencies, and component initialization.
-- [x] **✅ PROCESS CLEANUP ROBUST**: Hardened the `launch.sh` script to ensure old processes are terminated, preventing port conflicts.
-- [x] **✅ DOCUMENTATION UPDATED**: Updated `README.md` and `FUNCTIONS_INDEX.md` to reflect the new architecture.
+**Phase 1 Success Criteria:** 🎯 **In Progress**
+- [x] ✅ **ARCHITECTED**: The core TrippleEffect agent hierarchy is functional.
+- [x] ✅ **DELEGATION WORKS**: The automated delegation from Admin to PM to Worker is implemented.
+- [x] ✅ **TESTED**: The core automated workflow is validated with a new integration test.
+- [ ] 🟡 **STABLE**: The local hub starts, but full stability requires fixing the frontend build and integration.
+- [ ] 🟡 **UI FUNCTIONAL**: The UI is not yet integrated with the backend agent system.
 
-**MVP Success Criteria:** 🎯 **ACHIEVED**
-- [x] ✅ **STABLE**: Local Hub starts reliably without errors.
-- [x] ✅ **FUNCTIONAL**: Text-based AI interaction is possible through the new agent system.
-- [x] ✅ **ARCHITECTED**: The TrippleEffect agent hierarchy (Admin, PM, Worker) is fully implemented and operational.
-- [x] ✅ **DELEGATION WORKS**: Agents can successfully delegate tasks to one another.
-- [x] ✅ **TESTED**: The core agent workflow is validated with an integration test.
+### Phase 2: System Integration & Feature Enhancement (Planned)
 
-### Phase 2: Alpha (Weeks 9-12) - **Ready to Begin**
+**Status:** 📋 Planned
+**Objective:** Integrate the remaining placeholder components and enhance the UI.
 
-**Status:** 📋 Ready to Begin
-**Objective:** Build advanced AI workflows on top of the new stable agent architecture.
-
-#### Week 9-10: Advanced Agent Workflows ✅ COMPLETE
-- [x] **PRIORITY**: Implement a `ProjectCreationWorkflow` in the `WorkflowManager` to automatically spawn a PM agent when the Admin creates a plan.
-- [x] **PRIORITY**: Enhance the PM agent's `startup` state to automatically break down a project plan into a list of tasks for workers.
-- [x] **PRIORITY**: Implement the `build_team_tasks` and `activate_workers` states for the PM agent to create and assign tasks to a team of workers.
-- [x] **PRIORITY**: Implement more sophisticated tool-use parsing in the `Agent.process_message` method using robust XML parser (`ToolCallParser`).
-- [x] **CRITICAL**: Implement `PromptAssembler` component for state-specific system prompts.
-- [x] **CRITICAL**: Centralize all system prompts into `config/prompts.json` for easy development-time editing.
-- [ ] **NEXT**: Enhance the `Guardian` agent to monitor and validate inter-agent communication.
-
-#### Week 11-12: Enhanced Network & UI Features
-- [ ] Integrate discovered AI services from the network scan as potential tools for Worker agents.
-- [ ] Enhance the UI to provide real-time visualization of the agent hierarchy and their current states.
-- [ ] Begin implementation of voice services (Whisper/Piper) as tools available to agents.
-- [ ] Integrate the Kademlia DHT for more robust peer-to-peer discovery.
+#### Next Priorities:
+- [ ] **PRIORITY**: **Fix Frontend Integration**:
+  - Fully resolve any remaining issues with the `npm run build` process.
+  - Connect the React UI to the backend via WebSockets to provide real-time updates on agent status and communication.
+  - Create UI components to visualize the agent hierarchy and their states.
+- [ ] **Integrate ConstitutionalGuardian**: Wire the `Guardian` into the `AgentCycleHandler` to monitor all agent communications for constitutional compliance.
+- [ ] **Integrate MemoryManager**: Connect the `MemoryManager` to agents to provide them with persistent, long-term memory capabilities.
+- [ ] **Integrate Networking**: Implement the P2P networking stack to allow agents on different hubs to discover and communicate with each other.
+- [ ] **Integrate Identity & Storage**: Connect the `IdentityManager` and `DatabaseManager` to the core workflow for persistent, secure data handling.
 
 #### Week 11-12: Enhanced Network Features
 - [ ] **🧠 READY**: AI service orchestration across discovered network services

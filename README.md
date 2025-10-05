@@ -6,7 +6,7 @@
 **Human-AI Network: A Constitutional Framework for Decentralized AI Collaboration**
 
 [![Constitutional Compliance](https://img.shields.io/badge/Constitutional_Compliance-100%25-green.svg)](./CONSTITUTION.md)
-[![Phase](https://img.shields.io/badge/Phase-1%20MVP%20Complete-success.svg)](./helperfiles/PROJECT_PLAN.md)
+[![Phase](https://img.shields.io/badge/Phase-1%20Core%20Workflow%20Implemented-yellow.svg)](./helperfiles/PROJECT_PLAN.md)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](./requirements.txt)
 [![License](https://img.shields.io/badge/License-Open_Source-brightgreen.svg)](./LICENSE)
 
@@ -27,35 +27,29 @@ HAI-Net is built on **four immutable constitutional principles**:
 
 ## 🚀 Current Status
 
-### ✅ **Phase 1 MVP COMPLETE - Production Ready** 
+### 🟡 **Phase 1 In Progress: Core Agent Workflow Functional**
 
-**🎉 Complete Constitutional AI Network Implemented:**
+The foundational, event-driven agent workflow is now implemented and tested. This provides a stable base for building out the full feature set.
+
+**Key Accomplishments:**
+- **Automated Agent Hierarchy:** Implemented the full Admin -> PM -> Worker delegation workflow.
+- **Event-Driven Architecture:** The core components (`AgentManager`, `AgentCycleHandler`, `WorkflowManager`) are functional and orchestrate agent actions.
+- **State Machine:** Agents now correctly transition through states (`PLANNING`, `STARTUP`, `BUILD_TEAM_TASKS`, `WORK`, etc.) as part of the automated workflow.
+- **End-to-End Integration Test:** A new test (`tests/test_automated_workflow.py`) validates the entire delegation process.
+
+**Component Status:**
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| 🔐 **Identity System** | ✅ Complete | Advanced DID generation with Argon2id, watermarking, constitutional validation |
-| 🌐 **P2P Networking** | ✅ Complete | mDNS discovery, encrypted P2P communication, dynamic role management |
-| 🤖 **AI Agent System** | ✅ Complete | Event-driven agent hierarchy (Admin, PM, Worker) based on the TrippleEffect model. |
-| 🧠 **Memory & LLM** | ✅ Complete | Vector store, Ollama integration, constitutional filtering |
-| 🛡️ **Constitutional Guardian** | ✅ Complete | Real-time monitoring, violation detection, educational remediation |
-| 🌐 **Web Interface** | ✅ Complete | FastAPI server, React + WebGPU UI, real-time network visualization |
-| 🗄️ **Database & Storage** | ✅ Complete | Constitutional compliance, vector search, encryption |
-| ⚙️ **Configuration** | ✅ Complete | Pydantic V2 validation, constitutional compliance checks |
-| 📊 **Logging System** | ✅ Complete | Constitutional audit trail, comprehensive violation tracking |
-| 🧪 **Testing Framework** | ✅ Complete | 19/19 constitutional compliance + end-to-end integration tests |
-| **🆕 Node Role Manager** | ✅ Complete | Dynamic master/slave assignment with constitutional elections |
-| **🆕 WebGPU Renderer** | ✅ Complete | Hardware-accelerated network visualization with constitutional indicators |
-| **🆕 Integration Testing** | ✅ Complete | End-to-end system testing with constitutional compliance validation |
-| **🆕 Docker Deployment** | ✅ Complete | Production containers with security hardening and health checks |
-| **🆕 Installation Automation** | ✅ Complete | Cross-platform setup with constitutional principle acceptance |
-
-**🏗️ Advanced Architecture Achieved:**
-- **Complete 3-Layer System**: Application, Service, and Infrastructure layers operational
-- **Constitutional AI**: Full agent hierarchy with independent Guardian monitoring
-- **P2P Decentralization**: No central authority, mesh networking ready
-- **Production Quality**: Professional codebase with comprehensive error handling
-- **Privacy-First Design**: Local-only processing, encrypted storage, user consent
-- **Real-Time Interface**: React UI with WebSocket updates and constitutional monitoring
+| 🤖 **AI Agent System** | ✅ Functional | The core automated workflow (Admin -> PM -> Worker) is operational. |
+| 🧪 **Testing Framework**| ✅ Functional | A robust testing framework with a mock LLM and an end-to-end workflow test is in place. |
+| ⚙️ **Configuration** | ✅ Functional | Pydantic-based settings management is working. |
+| 📊 **Logging System** | ✅ Functional | Constitutional logger is integrated. |
+| 🌐 **Web Interface** | 🟡 Placeholder | FastAPI server runs, but UI build is not fully integrated and requires fixing. |
+| 🔐 **Identity System** | 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
+| 🌐 **P2P Networking** | 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
+| 🗄️ **Database & Storage**| 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
+| 🛡️ **Constitutional Guardian** | 🟡 Placeholder | Core class exists but is not integrated into the agent workflow. |
 
 ## 🛠️ Technical Implementation
 
@@ -227,27 +221,23 @@ print(f"Your HAI-Net DID: {identity['did']}")
 ## 🗺️ Development Roadmap
 
 ### **✅ Completed: Phase 0 - Foundation (Weeks 1-4)**
-- ✅ **Week 1**: Core infrastructure, identity, config, logging *(COMPLETE)*
-- ✅ **Week 2**: Networking (mDNS, P2P, encryption) *(COMPLETE)*
-- ✅ **Week 3**: AI foundation (LLM integration, agent state machine) *(COMPLETE)*
-- ✅ **Week 4**: UI foundation (FastAPI, React UI, WebSocket) *(COMPLETE)*
+- ✅ Core infrastructure and class structure established.
 
-### **✅ Completed: Phase 1 - MVP (Weeks 5-8)**
-- **Week 5-6**: ✅ Node role detection (Master/Slave), enhanced coordination *(COMPLETE)*
-- **Week 7-8**: ✅ WebGPU visualization engine, end-to-end testing, Docker deployment *(COMPLETE)*
-- **All Phase 1 goals achieved**: Constitutional AI network with hardware-accelerated visualization
+### **📍 Current: Phase 1 - Core Workflow Implementation (In Progress)**
+- **✅ COMPLETE**: Implemented the full, event-driven, automated agent workflow.
+  - ✅ Admin agent can create a plan, which automatically spawns a PM agent.
+  - ✅ PM agent can break down the plan into tasks.
+  - ✅ PM agent can request the creation of Worker agents for each task.
+  - ✅ PM agent can assign tasks to workers using the `SendMessageTool`.
+  - ✅ Worker agents can receive and execute tasks.
+  - ✅ Added a comprehensive integration test (`test_automated_workflow.py`) to validate the entire flow.
+  - ✅ Fixed critical frontend build issue by correcting the `web/public` directory structure.
 
-### **📍 Current: Phase 2 - Alpha (Week 9-10) - COMPLETE ✅**
-- **✅ COMPLETE**: Advanced AI workflows implemented
-  - ✅ Enhanced tool call parsing with robust XML parser (`ToolCallParser`)
-  - ✅ State-specific system prompts via `PromptAssembler`
-  - ✅ Centralized prompt management in `config/prompts.json`
-  - ✅ ProjectCreationWorkflow for automatic PM agent spawning
-  - ✅ PM STARTUP state with task breakdown capability
-  - ✅ PM BUILD_TEAM_TASKS and ACTIVATE_WORKERS state workflows
-  - ✅ State transition guidance messages for agent context
-
-**Next (Week 11-12)**: Enhanced Guardian monitoring, full PM → Worker delegation, UI visualization
+**Next (Phase 1 Continued)**:
+- [ ] **PRIORITY**: Fully integrate the frontend with the backend. Fix the UI build process and connect it to the agent system via WebSockets.
+- [ ] **NEXT**: Integrate the `ConstitutionalGuardian` into the agent cycle to monitor all communications.
+- [ ] Enhance the `MemoryManager` and integrate it with agents to provide long-term memory.
+- [ ] Implement the P2P networking components to allow agents to discover each other.
 
 ### **🚀 Next Phases**
 - **Phase 2**: Alpha with advanced AI workflows, voice services (Whisper/Piper), multi-hub mesh networking

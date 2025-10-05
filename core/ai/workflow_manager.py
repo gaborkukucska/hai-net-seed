@@ -31,53 +31,25 @@ class WorkflowManager:
 
     async def change_agent_state(self, agent: Agent, new_state: AgentState, context: Optional[str] = None) -> bool:
         """
-        Changes an agent's state, ensuring the transition is valid.
-        Injects guidance message into agent's history.
+        Changes an agent's state by calling the agent's own transition method.
+        Injects a guidance message into the agent's history beforehand.
         """
-        if AgentStateTransitions.is_valid_transition(agent.current_state, new_state):
-            self.logger.info(f"Transitioning agent {agent.agent_id} from {agent.current_state.value} to {new_state.value}")
-            
-            # Add state transition guidance message
+        try:
+            self.logger.info(f"Requesting state transition for agent {agent.agent_id} from {agent.current_state.value} to {new_state.value}")
+
+            # Add state transition guidance message to provide context to the agent for its next action
             from core.ai.prompt_assembler import PromptAssembler
             assembler = PromptAssembler(self.settings)
             transition_msg = assembler.create_state_transition_message(agent, new_state, context)
             agent.message_history.append(transition_msg)
+
+            # Call the agent's public state transition method
+            await agent.transition_state(new_state)
             
-            # Manually update agent state (instead of calling protected method)
-            if AgentStateTransitions.is_valid_transition(agent.current_state, new_state):
-                old_state = agent.current_state
-                agent.previous_state = agent.current_state
-                agent.current_state = new_state
-                
-                # Record state change
-                state_change: Dict[str, Any] = {
-                    "from_state": old_state.value,
-                    "to_state": new_state.value,
-                    "timestamp": time.time(),
-                    "agent_id": agent.agent_id,
-                    "constitutional_compliant": True
-                }
-                
-                agent.state_history.append(state_change)
-                agent.last_activity = time.time()
-                
-                # Log state transition
-                agent.logger.log_decentralization_event(
-                    f"state_transition_{old_state.value}_to_{new_state.value}",
-                    local_processing=True
-                )
-                
-                # Notify callbacks
-                for callback in agent.state_change_callbacks:
-                    try:
-                        callback(old_state, new_state)
-                    except Exception as e:
-                        agent.logger.error(f"State change callback error: {e}")
-            
+            self.logger.info(f"Agent {agent.agent_id} successfully transitioned to {new_state.value}")
             return True
-        else:
-            self.logger.error(f"Invalid state transition for agent {agent.agent_id}: "
-                              f"from {agent.current_state.value} to {new_state.value}")
+        except Exception as e:
+            self.logger.error(f"Failed to transition agent {agent.agent_id} to state {new_state.value}: {e}")
             return False
 
     async def process_plan_creation(self, admin_agent: Agent, plan: Dict[str, Any]):
@@ -151,3 +123,52 @@ class WorkflowManager:
         
         # Schedule PM to continue workflow
         await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
+
+    async def process_worker_creation(self, pm_agent: Agent, request: Dict[str, Any]):
+        """
+        Handle when PM requests to create a worker agent.
+
+        Steps:
+        1. Create a new WORKER agent.
+        2. Map the worker to the task_id in the PM's memory.
+        3. Notify the PM agent.
+        4. Reschedule the PM to continue building its team.
+        """
+        if not self.agent_manager:
+            self.logger.error("Cannot process worker creation: AgentManager not set")
+            return
+
+        task_id = request.get("task_id")
+        if not task_id:
+            self.logger.error(f"PM {pm_agent.agent_id} requested worker creation without a task_id.")
+            return
+
+        self.logger.info(f"PM {pm_agent.agent_id} is creating a worker for task {task_id}")
+
+        try:
+            # 1. Create Worker agent
+            worker_agent_id = await self.agent_manager.create_agent(AgentRole.WORKER)
+            if not worker_agent_id:
+                self.logger.error(f"Failed to create worker agent for task {task_id}")
+                return
+
+            # 2. Map worker to task in PM's memory
+            if "worker_map" not in pm_agent.memory.short_term:
+                pm_agent.memory.short_term["worker_map"] = {}
+            pm_agent.memory.short_term["worker_map"][task_id] = worker_agent_id
+
+            # 3. Notify PM
+            system_message = LLMMessage(
+                role="system",
+                content=f"[SYSTEM] Worker agent {worker_agent_id} has been created for task {task_id}. You can now assign the task details to this worker.",
+                timestamp=time.time()
+            )
+            pm_agent.message_history.append(system_message)
+
+            self.logger.info(f"✅ Worker {worker_agent_id} created for task {task_id}")
+
+            # 4. Reschedule PM to continue building team or move to next state
+            await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
+
+        except Exception as e:
+            self.logger.error(f"Worker creation workflow failed for PM {pm_agent.agent_id}: {e}")
