@@ -322,7 +322,8 @@ This file defines the fundamental building blocks of the agentic system.
 **Agent Methods:**
 - `[core/ai/agents.py]::[Agent]::[__init__](...) - Initializes a constitutional agent with a role, state, and capabilities.`
 - `[core/ai/agents.py]::[Agent]::[start]() / [stop]() - Manages the agent's lifecycle.`
-- `[core/ai/agents.py]::[Agent]::[process_message](messages) - **CRITICAL**: The core async generator that yields events (thoughts, tool requests, responses) for the `AgentCycleHandler` to process.`
+- `[core/ai/agents.py]::[Agent]::[process_message](messages) - **CRITICAL**: The core async generator that yields prioritized events (tool requests, workflow triggers, final response) for the `AgentCycleHandler` to process.`
+- `[core/ai/agents.py]::[Agent]::[transition_state](new_state) - The primary method for transitioning an agent to a new state.`
 - `[core/ai/agents.py]::[Agent]::[get_status]() - Returns the agent's current status and metrics.`
 
 **AgentManager Methods:**
@@ -351,6 +352,7 @@ These components manage the agent execution loop, tool interactions, and high-le
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[parse_tool_calls](text) - Parses tool calls from agent output using XML parser.`
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_plan](text) - Extracts plan blocks from agent output.`
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_task_list](text) - Extracts task lists from PM agent output.`
+- `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_create_worker_request](text) - Extracts a request to create a worker agent from PM output.`
 
 **`core/ai/interaction_handler.py`**
 - `[core/ai/interaction_handler.py]::[InteractionHandler] - Mediates between the `AgentCycleHandler` and the `ToolExecutor`.`
@@ -360,8 +362,11 @@ These components manage the agent execution loop, tool interactions, and high-le
 **`core/ai/workflow_manager.py`**
 - `[core/ai/workflow_manager.py]::[WorkflowManager] - Manages agent state transitions and orchestrates high-level, multi-agent workflows.`
 - `[core/ai/workflow_manager.py]::[WorkflowManager]::[__init__](settings) - Initializes the manager.`
-- `[core/ai/workflow_manager.py]::[WorkflowManager]::[change_agent_state](agent, new_state) - Safely transitions an agent to a new state.`
-- `[core/ai/workflow_manager.py]::[WorkflowManager]::[process_agent_output_for_workflow](agent, output) - Analyzes agent output for triggers that start complex workflows (e.g., project creation).`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[set_agent_manager](agent_manager) - Injects the agent manager for workflow operations.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[change_agent_state](agent, new_state, context) - Safely transitions an agent to a new state by calling the agent's own transition method.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[process_plan_creation](admin_agent, plan) - Handles the workflow for creating a PM agent from a plan.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[process_task_list_creation](pm_agent, tasks) - Handles the workflow after a PM agent creates a task list.`
+- `[core/ai/workflow_manager.py]::[WorkflowManager]::[process_worker_creation](pm_agent, request) - Handles the workflow for creating a new worker agent.`
 
 ### Agent Tools
 
