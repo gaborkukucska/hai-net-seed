@@ -6,8 +6,6 @@ in the TrippleEffect framework.
 """
 
 import time
-import asyncio
-from typing import Dict, Any, List, Optional
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
@@ -16,6 +14,7 @@ from core.ai.llm import LLMMessage
 from core.ai.interaction_handler import InteractionHandler
 from core.ai.workflow_manager import WorkflowManager
 from core.ai.guardian import ConstitutionalGuardian
+from core.ai.prompt_assembler import PromptAssembler
 
 class AgentCycleHandler:
     """
@@ -32,6 +31,7 @@ class AgentCycleHandler:
         self.interaction_handler = interaction_handler
         self.workflow_manager = workflow_manager
         self.guardian = guardian
+        self.prompt_assembler = PromptAssembler(settings)
 
     async def run_cycle(self, agent: Agent):
         """
@@ -47,12 +47,10 @@ class AgentCycleHandler:
 
             self.logger.info(f"Starting cycle for agent {agent.agent_id} in state {agent.previous_state.value}")
 
-            # 2. Prepare LLM call data (simplified for now)
-            # In a real implementation, a PromptAssembler would inject system prompts here.
-            messages_for_llm = agent.message_history
+            # 2. Prepare LLM call data with system prompts and context
+            messages_for_llm = self.prompt_assembler.prepare_llm_call_data(agent)
 
             # 3. Process events from the agent's generator
-            cycle_completed = False
             start_time = time.time()
             reschedule = False
 
@@ -72,15 +70,13 @@ class AgentCycleHandler:
                         # Format result and append to history for the agent to process
                         tool_result_message = LLMMessage(
                             role="tool",
-                            content=str(result), # Ensure content is string
-                            timestamp=time.time(),
-                            metadata={'tool_name': tool_call.get('name')}
+                            content=str(result),  # Ensure content is string
+                            timestamp=time.time()
                         )
                         agent.message_history.append(tool_result_message)
 
                     # The agent needs to process the tool results, so we schedule another cycle.
                     reschedule = True
-                    cycle_completed = True
                     break
 
                 elif event_type == "agent_state_change_requested":
@@ -89,7 +85,37 @@ class AgentCycleHandler:
                         new_state = AgentState(new_state_str)
                         await self.workflow_manager.change_agent_state(agent, new_state)
                         self.logger.info(f"Agent {agent.agent_id} requested state change to {new_state.value}")
-                    cycle_completed = True # State change often ends a turn
+                    break
+
+                elif event_type == "plan_created":
+                    # Admin created a plan - trigger workflow
+                    plan = event.get("plan", {})
+                    self.logger.info(f"Agent {agent.agent_id} created plan: {plan.get('project_name', 'Unnamed')}")
+                    
+                    # Store plan in agent's memory for workflow manager
+                    agent.message_history.append(LLMMessage(
+                        role="assistant",
+                        content=f"Plan created: {plan}",
+                        timestamp=time.time()
+                    ))
+                    
+                    # Trigger workflow processing
+                    await self.workflow_manager.process_plan_creation(agent, plan)
+                    break
+                
+                elif event_type == "task_list_created":
+                    # PM created task list
+                    tasks = event.get("tasks", [])
+                    self.logger.info(f"Agent {agent.agent_id} created {len(tasks)} tasks")
+                    
+                    agent.message_history.append(LLMMessage(
+                        role="assistant",
+                        content=f"Task list created: {len(tasks)} tasks defined",
+                        timestamp=time.time()
+                    ))
+                    
+                    # Trigger task list workflow
+                    await self.workflow_manager.process_task_list_creation(agent, tasks)
                     break
 
                 elif event_type == "final_response":
@@ -101,17 +127,15 @@ class AgentCycleHandler:
                     self.logger.info(f"Agent {agent.agent_id} final response: {content}")
 
                     agent.message_history.append(LLMMessage(role="assistant", content=content, timestamp=time.time()))
-                    cycle_completed = True
                     break
 
                 elif event_type == "error":
                     self.logger.error(f"Agent {agent.agent_id} reported an error: {event.get('content')}")
                     await self.workflow_manager.change_agent_state(agent, AgentState.ERROR)
-                    cycle_completed = True
                     break
 
             execution_time = time.time() - start_time
-            agent._update_response_time_metric(execution_time)
+            agent.metrics.average_response_time = execution_time if agent.metrics.average_response_time == 0 else (0.1 * execution_time + 0.9 * agent.metrics.average_response_time)
 
             # 5. Determine next step and set final state
             if reschedule:

@@ -8,17 +8,17 @@ Local LLM inference with constitutional protection
 import asyncio
 import json
 import time
-import requests
-import aiohttp
-from typing import Dict, List, Optional, Any, AsyncGenerator, Union
+from typing import Dict, List, Optional, Any, AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
-import threading
-from pathlib import Path
+
+try:
+    import aiohttp  # type: ignore
+except ImportError:
+    aiohttp = None  # type: ignore
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
-from core.identity.did import ConstitutionalViolationError
 
 
 class LLMProvider(Enum):
@@ -40,7 +40,7 @@ class LLMResponse:
     constitutional_compliant: bool
     privacy_protected: bool
     timestamp: float
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -108,9 +108,10 @@ class ConstitutionalLLMFilter:
             Dict with compliance status and details
         """
         try:
-            compliance_result = {
+            violations_list: List[Dict[str, Any]] = []
+            compliance_result: Dict[str, Any] = {
                 "compliant": True,
-                "violations": [],
+                "violations": violations_list,
                 "warnings": [],
                 "modified_prompt": prompt,
                 "privacy_protected": True,
@@ -120,13 +121,13 @@ class ConstitutionalLLMFilter:
             prompt_lower = prompt.lower()
             
             # Check for privacy violations
-            privacy_issues = []
+            privacy_issues: List[str] = []
             for pattern in self.privacy_violations:
                 if pattern in prompt_lower:
                     privacy_issues.append(pattern)
             
             if privacy_issues:
-                compliance_result["violations"].append({
+                violations_list.append({
                     "type": "privacy_violation",
                     "principle": "Privacy First",
                     "issues": privacy_issues,
@@ -136,13 +137,13 @@ class ConstitutionalLLMFilter:
                 compliance_result["privacy_protected"] = False
             
             # Check for harmful content
-            harmful_issues = []
+            harmful_issues: List[str] = []
             for pattern in self.harmful_content:
                 if pattern in prompt_lower:
                     harmful_issues.append(pattern)
             
             if harmful_issues:
-                compliance_result["violations"].append({
+                violations_list.append({
                     "type": "harmful_content",
                     "principle": "Human Rights",
                     "issues": harmful_issues,
@@ -152,13 +153,13 @@ class ConstitutionalLLMFilter:
                 compliance_result["human_rights_respected"] = False
             
             # Check for human rights violations
-            rights_issues = []
+            rights_issues: List[str] = []
             for pattern in self.human_rights_violations:
                 if pattern in prompt_lower:
                     rights_issues.append(pattern)
             
             if rights_issues:
-                compliance_result["violations"].append({
+                violations_list.append({
                     "type": "human_rights_violation",
                     "principle": "Human Rights",
                     "issues": rights_issues,
@@ -199,9 +200,10 @@ class ConstitutionalLLMFilter:
             Dict with compliance status and details
         """
         try:
-            compliance_result = {
+            violations_list: List[Dict[str, Any]] = []
+            compliance_result: Dict[str, Any] = {
                 "compliant": True,
-                "violations": [],
+                "violations": violations_list,
                 "warnings": [],
                 "filtered_response": response,
                 "privacy_protected": True,
@@ -211,13 +213,13 @@ class ConstitutionalLLMFilter:
             response_lower = response.lower()
             
             # Check for leaked private information
-            privacy_leaks = []
+            privacy_leaks: List[str] = []
             for pattern in self.privacy_violations:
                 if pattern in response_lower:
                     privacy_leaks.append(pattern)
             
             if privacy_leaks:
-                compliance_result["violations"].append({
+                violations_list.append({
                     "type": "privacy_leak",
                     "principle": "Privacy First",
                     "issues": privacy_leaks,
@@ -229,13 +231,13 @@ class ConstitutionalLLMFilter:
                 compliance_result["filtered_response"] = "[RESPONSE FILTERED: Privacy violation detected]"
             
             # Check for harmful content generation
-            harmful_content = []
+            harmful_content: List[str] = []
             for pattern in self.harmful_content:
                 if pattern in response_lower:
                     harmful_content.append(pattern)
             
             if harmful_content:
-                compliance_result["violations"].append({
+                violations_list.append({
                     "type": "harmful_content_generation",
                     "principle": "Human Rights",
                     "issues": harmful_content,
@@ -277,7 +279,7 @@ class OllamaProvider:
         self.settings = settings
         self.base_url = base_url
         self.logger = get_logger("ai.llm.ollama", settings)
-        self.session = None
+        self.session: Any = None
         self.available_models: List[LLMModelInfo] = []
         
         # Constitutional compliance
@@ -287,7 +289,10 @@ class OllamaProvider:
     async def initialize(self) -> bool:
         """Initialize Ollama provider"""
         try:
-            self.session = aiohttp.ClientSession()
+            if aiohttp is None:
+                self.logger.error("aiohttp is not installed, cannot initialize Ollama provider")
+                return False
+            self.session = aiohttp.ClientSession()  # type: ignore
             
             # Check if Ollama is running
             if not await self._check_ollama_availability():
@@ -389,14 +394,14 @@ class OllamaProvider:
                     )
             
             # Prepare request for Ollama
-            ollama_messages = []
+            ollama_messages: List[Dict[str, str]] = []
             for msg in messages:
                 ollama_messages.append({
                     "role": msg.role,
                     "content": msg.content
                 })
             
-            request_data = {
+            request_data: Dict[str, Any] = {
                 "model": model,
                 "messages": ollama_messages,
                 "stream": False,
@@ -495,14 +500,14 @@ class OllamaProvider:
                     return
             
             # Prepare request for Ollama streaming
-            ollama_messages = []
+            ollama_messages: List[Dict[str, str]] = []
             for msg in messages:
                 ollama_messages.append({
                     "role": msg.role,
                     "content": msg.content
                 })
             
-            request_data = {
+            request_data: Dict[str, Any] = {
                 "model": model,
                 "messages": ollama_messages,
                 "stream": True,
@@ -637,7 +642,7 @@ class LLMManager:
     async def generate_response(self, messages: List[LLMMessage], model: str,
                               user_did: Optional[str] = None,
                               provider: Optional[LLMProvider] = None,
-                              **kwargs) -> LLMResponse:
+                              **kwargs: Any) -> LLMResponse:
         """
         Generate response using specified model and provider
         
@@ -697,7 +702,7 @@ class LLMManager:
     async def stream_response(self, messages: List[LLMMessage], model: str,
                             user_did: Optional[str] = None,
                             provider: Optional[LLMProvider] = None,
-                            **kwargs) -> AsyncGenerator[str, None]:
+                            **kwargs: Any) -> AsyncGenerator[str, None]:
         """
         Stream response using specified model and provider
         

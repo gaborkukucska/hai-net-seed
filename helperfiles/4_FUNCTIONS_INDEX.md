@@ -338,8 +338,19 @@ These components manage the agent execution loop, tool interactions, and high-le
 
 **`core/ai/cycle_handler.py`**
 - `[core/ai/cycle_handler.py]::[AgentCycleHandler] - The engine of the agent framework. It runs an agent's execution cycle.`
-- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[__init__](...) - Initializes with interaction, workflow, and guardian handlers.`
-- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[run_cycle](agent) - **CRITICAL**: Manages the agent's state, consumes events from `agent.process_message`, and orchestrates actions like tool calls and state changes.`
+- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[__init__](...) - Initializes with interaction, workflow, and guardian handlers, plus PromptAssembler.`
+- `[core/ai/cycle_handler.py]::[AgentCycleHandler]::[run_cycle](agent) - **CRITICAL**: Manages the agent's state, consumes events from `agent.process_message`, and orchestrates actions like tool calls, workflows, and state changes.`
+
+**`core/ai/prompt_assembler.py`** - **NEW**
+- `[core/ai/prompt_assembler.py]::[PromptAssembler] - Assembles state-specific system prompts for agents.`
+- `[core/ai/prompt_assembler.py]::[PromptAssembler]::[prepare_llm_call_data](agent) - Prepares complete message list including system prompts and context.`
+- `[core/ai/prompt_assembler.py]::[PromptAssembler]::[create_state_transition_message](agent, new_state, context) - Creates guidance message for state transitions.`
+
+**`core/ai/tool_parser.py`** - **NEW**
+- `[core/ai/tool_parser.py]::[ToolCallParser] - Robust XML parsing for agent tool requests.`
+- `[core/ai/tool_parser.py]::[ToolCallParser]::[parse_tool_calls](text) - Parses tool calls from agent output using XML parser.`
+- `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_plan](text) - Extracts plan blocks from agent output.`
+- `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_task_list](text) - Extracts task lists from PM agent output.`
 
 **`core/ai/interaction_handler.py`**
 - `[core/ai/interaction_handler.py]::[InteractionHandler] - Mediates between the `AgentCycleHandler` and the `ToolExecutor`.`

@@ -11,7 +11,6 @@ import time
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
-import hashlib
 import threading
 
 # Use TYPE_CHECKING to avoid circular imports
@@ -28,7 +27,7 @@ class ConstitutionalLogFilter(logging.Filter):
         super().__init__()
         self.constitutional_version = constitutional_version
     
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         """Add constitutional context to every log record"""
         record.constitutional_version = self.constitutional_version
         record.compliance_timestamp = time.time()
@@ -45,7 +44,7 @@ class ConstitutionalFormatter(logging.Formatter):
         super().__init__()
         self.base_format = "[{asctime}] [{constitutional_version}] [{levelname}] [{name}] [{thread_id}] {message}"
     
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         """Format log record with constitutional compliance info"""
         # Ensure constitutional fields exist
         if not hasattr(record, 'constitutional_version'):
@@ -76,7 +75,7 @@ class HAINetLogger:
     Provides audit trail and privacy protection with categorized debug logging
     """
     
-    def __init__(self, name: str, settings: Optional[Any] = None):
+    def __init__(self, name: str, settings: Optional['HAINetSettings'] = None):
         self.name = name
         self.settings = settings
         self.logger = logging.getLogger(name)
@@ -147,11 +146,15 @@ class HAINetLogger:
             logs_dir.mkdir(parents=True, exist_ok=True)
             
             # Check if file logging is enabled in settings.yaml
-            import yaml
+            try:
+                import yaml  # type: ignore
+            except ImportError:
+                yaml = None  # type: ignore
+            
             settings_file = Path("settings.yaml")
             file_logging_enabled = True  # Default to enabled
             
-            if settings_file.exists():
+            if yaml and settings_file.exists():
                 try:
                     with open(settings_file, 'r') as f:
                         config = yaml.safe_load(f)
@@ -193,7 +196,7 @@ class HAINetLogger:
             
             # Only log constitutional events to compliance log
             class ConstitutionalOnlyFilter(logging.Filter):
-                def filter(self, record):
+                def filter(self, record: logging.LogRecord) -> bool:
                     return hasattr(record, 'constitutional_event')
             
             compliance_handler.addFilter(ConstitutionalOnlyFilter())
@@ -203,7 +206,7 @@ class HAINetLogger:
             print(f"⚠️ File logging setup failed: {e}")
             # Continue without file logging rather than crash
     
-    def log_constitutional_event(self, event_type: str, details: Dict[str, Any], level: str = "INFO"):
+    def log_constitutional_event(self, event_type: str, details: Dict[str, Any], level: str = "INFO") -> None:
         """
         Log a constitutional compliance event
         
@@ -212,7 +215,7 @@ class HAINetLogger:
             details: Event details and context
             level: Log level
         """
-        event_data = {
+        event_data: Dict[str, Any] = {
             "event_type": event_type,
             "timestamp": time.time(),
             "details": details,
@@ -274,7 +277,7 @@ class HAINetLogger:
             "principle": "Community Focus"
         })
     
-    def log_violation(self, violation_type: str, details: Dict[str, Any], severity: str = "WARNING"):
+    def log_violation(self, violation_type: str, details: Dict[str, Any], severity: str = "WARNING") -> None:
         """
         Log constitutional violations with educational context
         
@@ -285,7 +288,7 @@ class HAINetLogger:
         """
         self.violation_count += 1
         
-        violation_data = {
+        violation_data: Dict[str, Any] = {
             "violation_type": violation_type,
             "severity": severity,
             "details": details,
@@ -306,7 +309,7 @@ class HAINetLogger:
     
     def get_compliance_summary(self) -> Dict[str, Any]:
         """Get summary of constitutional compliance events"""
-        event_types = {}
+        event_types: Dict[str, int] = {}
         for event in self.compliance_events:
             event_type = event["event_type"]
             event_types[event_type] = event_types.get(event_type, 0) + 1
@@ -319,27 +322,27 @@ class HAINetLogger:
             "last_event": self.compliance_events[-1] if self.compliance_events else None
         }
     
-    def info(self, message: str, category: str = "general", function: str = "", **kwargs):
+    def info(self, message: str, category: str = "general", function: str = "", **kwargs: Any) -> None:
         """Info level logging with categorization"""
         formatted_message = self._format_categorized_message(message, category, function)
         self.logger.info(formatted_message, **kwargs)
     
-    def debug(self, message: str, category: str = "general", function: str = "", **kwargs):
+    def debug(self, message: str, category: str = "general", function: str = "", **kwargs: Any) -> None:
         """Debug level logging with categorization"""
         formatted_message = self._format_categorized_message(message, category, function)
         self.logger.debug(formatted_message, **kwargs)
     
-    def warning(self, message: str, category: str = "general", function: str = "", **kwargs):
+    def warning(self, message: str, category: str = "general", function: str = "", **kwargs: Any) -> None:
         """Warning level logging with categorization"""
         formatted_message = self._format_categorized_message(message, category, function)
         self.logger.warning(formatted_message, **kwargs)
     
-    def error(self, message: str, category: str = "error", function: str = "", **kwargs):
+    def error(self, message: str, category: str = "error", function: str = "", **kwargs: Any) -> None:
         """Error level logging with categorization"""
         formatted_message = self._format_categorized_message(message, category, function)
         self.logger.error(formatted_message, **kwargs)
     
-    def critical(self, message: str, category: str = "error", function: str = "", **kwargs):
+    def critical(self, message: str, category: str = "error", function: str = "", **kwargs: Any) -> None:
         """Critical level logging with categorization"""
         formatted_message = self._format_categorized_message(message, category, function)
         self.logger.critical(formatted_message, **kwargs)
@@ -354,79 +357,79 @@ class HAINetLogger:
             return f"[{category_tag}] {message}"
     
     # Convenience methods for specific categories
-    def debug_init(self, message: str, function: str = "", **kwargs):
+    def debug_init(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug initialization processes"""
         self.debug(message, category="init", function=function, **kwargs)
     
-    def debug_network(self, message: str, function: str = "", **kwargs):
+    def debug_network(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug network operations"""
         self.debug(message, category="network", function=function, **kwargs)
     
-    def debug_crypto(self, message: str, function: str = "", **kwargs):
+    def debug_crypto(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug cryptographic operations"""
         self.debug(message, category="crypto", function=function, **kwargs)
     
-    def debug_ai(self, message: str, function: str = "", **kwargs):
+    def debug_ai(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug AI operations"""
         self.debug(message, category="ai", function=function, **kwargs)
     
-    def debug_storage(self, message: str, function: str = "", **kwargs):
+    def debug_storage(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug storage operations"""
         self.debug(message, category="storage", function=function, **kwargs)
     
-    def debug_web(self, message: str, function: str = "", **kwargs):
+    def debug_web(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug web server operations"""
         self.debug(message, category="web", function=function, **kwargs)
     
-    def debug_agent(self, message: str, function: str = "", **kwargs):
+    def debug_agent(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug agent operations"""
         self.debug(message, category="agent", function=function, **kwargs)
     
-    def debug_constitutional(self, message: str, function: str = "", **kwargs):
+    def debug_constitutional(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug constitutional compliance"""
         self.debug(message, category="constitutional", function=function, **kwargs)
     
-    def debug_performance(self, message: str, function: str = "", **kwargs):
+    def debug_performance(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Debug performance metrics"""
         self.debug(message, category="performance", function=function, **kwargs)
     
-    def info_init(self, message: str, function: str = "", **kwargs):
+    def info_init(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Info initialization processes"""
         self.info(message, category="init", function=function, **kwargs)
     
-    def info_network(self, message: str, function: str = "", **kwargs):
+    def info_network(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Info network operations"""
         self.info(message, category="network", function=function, **kwargs)
     
-    def info_web(self, message: str, function: str = "", **kwargs):
+    def info_web(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Info web server operations"""
         self.info(message, category="web", function=function, **kwargs)
     
-    def warning_constitutional(self, message: str, function: str = "", **kwargs):
+    def warning_constitutional(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Warning for constitutional issues"""
         self.warning(message, category="constitutional", function=function, **kwargs)
     
-    def warning_network(self, message: str, function: str = "", **kwargs):
+    def warning_network(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Warning for network issues"""
         self.warning(message, category="network", function=function, **kwargs)
     
-    def error_constitutional(self, message: str, function: str = "", **kwargs):
+    def error_constitutional(self, message: str, function: str = "", **kwargs: Any) -> None:
         """Error for constitutional violations"""
         self.error(message, category="constitutional", function=function, **kwargs)
 
 
 # Global logger registry
 _loggers: Dict[str, HAINetLogger] = {}
-_default_settings: Optional[Any] = None
+_default_settings: Optional['HAINetSettings'] = None
 
 
-def set_default_settings(settings: Any):
+def set_default_settings(settings: 'HAINetSettings') -> None:
     """Set default settings for all loggers"""
     global _default_settings
     _default_settings = settings
 
 
-def get_logger(name: str, settings: Optional[Any] = None) -> HAINetLogger:
+def get_logger(name: str, settings: Optional['HAINetSettings'] = None) -> HAINetLogger:
     """
     Get or create a HAI-Net logger with constitutional compliance
     
@@ -465,7 +468,7 @@ def log_system_stop(component: str, clean_shutdown: bool = True):
 
 def get_all_compliance_summaries() -> Dict[str, Dict[str, Any]]:
     """Get compliance summaries for all loggers"""
-    summaries = {}
+    summaries: Dict[str, Dict[str, Any]] = {}
     for name, logger in _loggers.items():
         summaries[name] = logger.get_compliance_summary()
     

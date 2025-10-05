@@ -126,12 +126,14 @@ HAI-Net (Human-AI Network) is a decentralized, privacy-first framework for human
 **Status:** 📋 Ready to Begin
 **Objective:** Build advanced AI workflows on top of the new stable agent architecture.
 
-#### Week 9-10: Advanced Agent Workflows
-- [ ] **PRIORITY**: Implement a `ProjectCreationWorkflow` in the `WorkflowManager` to automatically spawn a PM agent when the Admin creates a plan.
-- [ ] **PRIORITY**: Enhance the PM agent's `startup` state to automatically break down a project plan into a list of tasks for workers.
-- [ ] **PRIORITY**: Implement the `build_team_tasks` and `activate_workers` states for the PM agent to create and assign tasks to a team of workers.
-- [ ] Implement more sophisticated tool-use parsing in the `Agent.process_message` method (e.g., using a dedicated XML parser).
-- [ ] Enhance the `Guardian` agent to monitor and validate inter-agent communication.
+#### Week 9-10: Advanced Agent Workflows ✅ COMPLETE
+- [x] **PRIORITY**: Implement a `ProjectCreationWorkflow` in the `WorkflowManager` to automatically spawn a PM agent when the Admin creates a plan.
+- [x] **PRIORITY**: Enhance the PM agent's `startup` state to automatically break down a project plan into a list of tasks for workers.
+- [x] **PRIORITY**: Implement the `build_team_tasks` and `activate_workers` states for the PM agent to create and assign tasks to a team of workers.
+- [x] **PRIORITY**: Implement more sophisticated tool-use parsing in the `Agent.process_message` method using robust XML parser (`ToolCallParser`).
+- [x] **CRITICAL**: Implement `PromptAssembler` component for state-specific system prompts.
+- [x] **CRITICAL**: Centralize all system prompts into `config/prompts.json` for easy development-time editing.
+- [ ] **NEXT**: Enhance the `Guardian` agent to monitor and validate inter-agent communication.
 
 #### Week 11-12: Enhanced Network & UI Features
 - [ ] Integrate discovered AI services from the network scan as potential tools for Worker agents.

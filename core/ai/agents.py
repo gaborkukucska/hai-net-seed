@@ -7,21 +7,20 @@ Agent state machine and lifecycle management with constitutional protection
 
 import asyncio
 import time
-import json
 import secrets
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Dict, List, Optional, Any, Callable, Set, AsyncGenerator, TYPE_CHECKING
 from dataclasses import dataclass, asdict
 from enum import Enum
-from datetime import datetime, timedelta
-import threading
-import uuid
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
-from typing import Dict, List, Optional, Any, Callable, Set, AsyncGenerator
-from .llm import LLMManager, LLMMessage, LLMResponse
+from .llm import LLMManager, LLMMessage
 from .schemas import AgentMemory
+
+if TYPE_CHECKING:
+    from .cycle_handler import AgentCycleHandler
+    from .workflow_manager import WorkflowManager
 
 class AgentState(Enum):
     """
@@ -95,7 +94,7 @@ class AgentMetrics:
 class AgentStateTransitions:
     """Manages valid state transitions for agents based on TrippleEffect workflows."""
     
-    VALID_TRANSITIONS = {
+    VALID_TRANSITIONS: Dict[AgentState, List[AgentState]] = {
         # General transitions
         AgentState.IDLE: [AgentState.STARTUP, AgentState.PROCESSING, AgentState.PLANNING, AgentState.CONVERSATION, AgentState.MANAGE, AgentState.WORK, AgentState.SHUTDOWN],
         AgentState.PROCESSING: [AgentState.IDLE, AgentState.ERROR],
@@ -182,7 +181,7 @@ class Agent:
         
         # Threading
         self._lock = asyncio.Lock()
-        self.heartbeat_task: Optional[asyncio.Task] = None
+        self.heartbeat_task: Optional[asyncio.Task[None]] = None
         
         # State change callbacks
         self.state_change_callbacks: List[Callable[[AgentState, AgentState], None]] = []
@@ -246,7 +245,7 @@ class Agent:
                 return True
                 
         except Exception as e:
-            self.logger.error(f"Agent startup failed: {e}")
+            self.logger.error(f"Agent startup failed: {e}")  # type: ignore
             await self._transition_state(AgentState.ERROR)
             return False
     
@@ -276,7 +275,7 @@ class Agent:
                 )
                 
         except Exception as e:
-            self.logger.error(f"Agent shutdown failed: {e}")
+            self.logger.error(f"Agent shutdown failed: {e}")  # type: ignore
     
     async def _initialize_agent(self):
         """Initialize agent during startup"""
@@ -321,7 +320,7 @@ class Agent:
         self.current_state = new_state
         
         # Record state change
-        state_change = {
+        state_change: Dict[str, Any] = {
             "from_state": old_state.value,
             "to_state": new_state.value,
             "timestamp": time.time(),
@@ -364,41 +363,51 @@ class Agent:
         try:
             # Stream the response from the LLM provider
             async for chunk in self.llm_manager.stream_response(messages, model, self.user_did):
-                if isinstance(chunk, str):
-                    full_response += chunk
-                elif isinstance(chunk, dict) and 'error' in chunk:
-                    yield {"type": "error", "content": chunk['error']}
-                    return
+                full_response += chunk
 
-            # Basic parsing for tool calls. A real implementation would use a more robust XML parser.
-            if "<tool_requests>" in full_response and "</tool_requests>" in full_response:
+            # Import the tool parser (dynamic import to avoid circular dependency)
+            import importlib
+            tool_parser_module = importlib.import_module('core.ai.tool_parser')
+            ToolCallParser = tool_parser_module.ToolCallParser
+            parser = ToolCallParser(self.settings)
+            
+            # Parse for tool calls using robust XML parser
+            parse_result = parser.parse_tool_calls(full_response)
+            
+            if parse_result.get("success", False):
                 yield {
                     "type": "agent_thought",
-                    "content": "Tool request detected. Parsing and yielding tool_requests event."
+                    "content": "Tool request detected and parsed successfully."
                 }
-                # This is a highly simplified parser for the test case.
-                # It finds the tool name, target_agent_id, and message.
-                try:
-                    tool_name = full_response.split("<name>")[1].split("</name>")[0].strip()
-                    target_id = full_response.split("<target_agent_id>")[1].split("</target_agent_id>")[0].strip()
-                    message = full_response.split("<message>")[1].split("</message>")[0].strip()
-
-                    tool_call = {
-                        "name": tool_name,
-                        "args": {
-                            "target_agent_id": target_id,
-                            "message": message
-                        }
+                yield {
+                    "type": "tool_requests",
+                    "calls": parse_result["tool_calls"]
+                }
+            else:
+                # Check for special workflow triggers (plan, task_list, etc.)
+                plan = parser.extract_plan(full_response)
+                if plan is not None:
+                    yield {
+                        "type": "agent_thought",
+                        "content": "Plan created. Triggering workflow."
                     }
                     yield {
-                        "type": "tool_requests",
-                        "calls": [tool_call]
+                        "type": "plan_created",
+                        "plan": plan
                     }
-                except IndexError:
-                    yield {"type": "error", "content": "Malformed tool_requests XML."}
-
-            else:
-                # No tool call found, yield final response
+                
+                task_list = parser.extract_task_list(full_response)
+                if task_list is not None:
+                    yield {
+                        "type": "agent_thought",
+                        "content": "Task list created."
+                    }
+                    yield {
+                        "type": "task_list_created",
+                        "tasks": task_list
+                    }
+                
+                # No tool call or special trigger found, yield final response
                 yield {
                     "type": "agent_thought",
                     "content": f"No tool request found. Preparing final response."
@@ -488,20 +497,6 @@ class Agent:
     
     async def _save_agent_state(self):
         """Save agent state for persistence"""
-        state_data = {
-            "agent_id": self.agent_id,
-            "role": self.role.value,
-            "current_state": self.current_state.value,
-            "capabilities": [cap.value for cap in self.capabilities],
-            "metrics": asdict(self.metrics),
-            "memory_summary": {
-                "episodic_count": len(self.memory.episodic),
-                "short_term_keys": list(self.memory.short_term.keys()),
-                "constitutional_score": self.memory.constitutional.get("compliance_score", 1.0)
-            },
-            "saved_at": time.time()
-        }
-        
         # TODO: Save to database using storage system
         self.logger.debug(f"Agent state saved: {self.agent_id}")
     
@@ -555,6 +550,8 @@ class AgentManager:
         """Set the core handlers after initialization."""
         self.cycle_handler = cycle_handler
         self.workflow_manager = workflow_manager
+        # Wire up the workflow manager's dependency on agent manager
+        workflow_manager.set_agent_manager(self)
     
     async def create_agent(self, role: AgentRole, user_did: Optional[str] = None,
                           capabilities: Optional[Set[AgentCapability]] = None) -> Optional[str]:
@@ -677,7 +674,7 @@ class AgentManager:
         health_scores = [agent.metrics.health_score for agent in self.agents.values()]
         avg_health = sum(health_scores) / len(health_scores) if health_scores else 0
         
-        state_counts = {}
+        state_counts: Dict[str, int] = {}
         for agent in self.agents.values():
             state = agent.current_state.value
             state_counts[state] = state_counts.get(state, 0) + 1
@@ -712,26 +709,12 @@ if __name__ == "__main__":
     import asyncio
     from core.config.settings import HAINetSettings
     
-    class MockCycleHandler:
-        async def run_cycle(self, agent: Agent):
-            print(f"--- Running Mock Cycle for {agent.agent_id} ---")
-            async for event in agent.process_message():
-                print(f"Event: {event}")
-            print(f"--- Finished Mock Cycle for {agent.agent_id} ---")
-
-    class MockWorkflowManager:
-        pass
-
     async def test_agents():
         print("HAI-Net Constitutional Agent Test (Refactored)")
         print("=" * 50)
         
         settings = HAINetSettings()
         agent_manager = create_agent_manager(settings)
-        
-        cycle_handler = MockCycleHandler()
-        workflow_manager = MockWorkflowManager()
-        agent_manager.set_handlers(cycle_handler, workflow_manager)
 
         try:
             admin_agent_id = await agent_manager.create_agent(
