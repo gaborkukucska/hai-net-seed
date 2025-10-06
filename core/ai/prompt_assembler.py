@@ -277,16 +277,30 @@ Review agent outputs and flag any violations."""
     def _get_system_prompt(self, agent: Agent) -> str:
         """Get the system prompt for an agent based on role and state"""
         
-        if agent.role == AgentRole.ADMIN:
-            return self.admin_prompts.get(agent.current_state, "")
-        elif agent.role == AgentRole.PM:
-            return self.pm_prompts.get(agent.current_state, "")
-        elif agent.role == AgentRole.WORKER:
-            return self.worker_prompts.get(agent.current_state, "")
-        elif agent.role == AgentRole.GUARDIAN:
-            return self.guardian_prompts.get(agent.current_state, "")
+        prompt = ""
         
-        return ""
+        if agent.role == AgentRole.ADMIN:
+            # If Admin is in IDLE state, use CONVERSATION prompt
+            if agent.current_state == AgentState.IDLE:
+                prompt = self.admin_prompts.get(AgentState.CONVERSATION, "")
+            else:
+                prompt = self.admin_prompts.get(agent.current_state, "")
+        elif agent.role == AgentRole.PM:
+            prompt = self.pm_prompts.get(agent.current_state, "")
+        elif agent.role == AgentRole.WORKER:
+            # If Worker is in IDLE state, use WORK prompt
+            if agent.current_state == AgentState.IDLE:
+                prompt = self.worker_prompts.get(AgentState.WORK, "")
+            else:
+                prompt = self.worker_prompts.get(agent.current_state, "")
+        elif agent.role == AgentRole.GUARDIAN:
+            prompt = self.guardian_prompts.get(agent.current_state, "")
+        
+        # Debug logging
+        self.logger.info(f"[DEBUG] Getting system prompt for {agent.role.value} in state {agent.current_state.value}")
+        self.logger.info(f"[DEBUG] Prompt length: {len(prompt)}, starts with: {prompt[:100] if prompt else 'EMPTY'}")
+        
+        return prompt
     
     def _get_dynamic_context(self, agent: Agent) -> str:
         """Get dynamic context to inject into the prompt"""

@@ -97,7 +97,7 @@ class AgentStateTransitions:
     VALID_TRANSITIONS: Dict[AgentState, List[AgentState]] = {
         # General transitions
         AgentState.IDLE: [AgentState.STARTUP, AgentState.PROCESSING, AgentState.PLANNING, AgentState.CONVERSATION, AgentState.MANAGE, AgentState.WORK, AgentState.SHUTDOWN],
-        AgentState.PROCESSING: [AgentState.IDLE, AgentState.ERROR],
+        AgentState.PROCESSING: [AgentState.IDLE, AgentState.ERROR, AgentState.BUILD_TEAM_TASKS, AgentState.ACTIVATE_WORKERS, AgentState.MANAGE, AgentState.PLANNING, AgentState.CONVERSATION],
         AgentState.ERROR: [AgentState.IDLE, AgentState.MAINTENANCE, AgentState.SHUTDOWN],
         AgentState.MAINTENANCE: [AgentState.IDLE],
         AgentState.SHUTDOWN: [],

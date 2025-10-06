@@ -4,8 +4,7 @@ HAI-Net Interaction Handler
 Mediates tool execution for agents.
 """
 
-from typing import Dict, Any, List, Optional
-import asyncio
+from typing import Dict, Any
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
@@ -45,9 +44,8 @@ class InteractionHandler:
 
         # Log the interaction for constitutional audit (without the injected sender)
         self.logger.log_community_event(
-            event_type=f"tool_executed_{tool_name}",
-            community_benefit=True,
-            details={"agent_id": agent.agent_id, "args": tool_args, "result": execution_result}
+            action=f"tool_executed_{tool_name}",
+            community_benefit=True
         )
 
         return execution_result

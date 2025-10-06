@@ -42,13 +42,13 @@ class AgentCycleHandler:
             return
 
         try:
-            # 1. Set agent state to PROCESSING
-            await self.workflow_manager.change_agent_state(agent, AgentState.PROCESSING)
-
-            self.logger.info(f"Starting cycle for agent {agent.agent_id} in state {agent.previous_state.value}")
-
-            # 2. Prepare LLM call data with system prompts and context
+            # 1. Prepare LLM call data BEFORE transitioning to PROCESSING
+            # This ensures the system prompt matches the agent's actual state
+            self.logger.info(f"Starting cycle for agent {agent.agent_id} in state {agent.current_state.value}")
             messages_for_llm = self.prompt_assembler.prepare_llm_call_data(agent)
+
+            # 2. Set agent state to PROCESSING
+            await self.workflow_manager.change_agent_state(agent, AgentState.PROCESSING)
 
             # 3. Process events from the agent's generator
             start_time = time.time()
@@ -114,17 +114,27 @@ class AgentCycleHandler:
                         timestamp=time.time()
                     ))
                     
+                    # Store the state before workflow processing
+                    state_before_workflow = agent.current_state
+                    
                     # Trigger task list workflow
                     await self.workflow_manager.process_task_list_creation(agent, tasks)
+                    
+                    # If workflow changed the state, don't transition to IDLE at the end
+                    if agent.current_state != state_before_workflow:
+                        return  # Exit early, workflow has taken control
                     break
 
                 elif event_type == "create_worker_requested":
                     # PM requested to create a worker
                     request = event.get("request", {})
                     self.logger.info(f"Agent {agent.agent_id} requested worker creation for task: {request.get('task_id')}")
+                    
                     await self.workflow_manager.process_worker_creation(agent, request)
-                    # The workflow manager will schedule the next cycle if needed
-                    break
+                    
+                    # Workflow manager handles state transitions and rescheduling
+                    # Exit early to let workflow control the agent state
+                    return
 
                 elif event_type == "final_response":
                     content = event.get("content", "")
@@ -135,6 +145,9 @@ class AgentCycleHandler:
                     self.logger.info(f"Agent {agent.agent_id} final response: {content}")
 
                     agent.message_history.append(LLMMessage(role="assistant", content=content, timestamp=time.time()))
+                    
+                    # Check for automatic state transitions based on agent state
+                    await self._check_auto_transitions(agent)
                     break
 
                 elif event_type == "error":
@@ -149,9 +162,15 @@ class AgentCycleHandler:
             if reschedule:
                 # If a tool was called, the agent needs to process the results immediately.
                 await agent.manager.schedule_cycle(agent.agent_id)
-            elif agent.current_state != AgentState.ERROR:
-                # If the cycle finished normally, set agent to IDLE.
-                await self.workflow_manager.change_agent_state(agent, AgentState.IDLE)
+            else:
+                # Check if agent is in a workflow state that should be preserved
+                workflow_states = {AgentState.BUILD_TEAM_TASKS, AgentState.ACTIVATE_WORKERS, AgentState.MANAGE, 
+                                  AgentState.PLANNING, AgentState.CONVERSATION, AgentState.WORK, AgentState.WAIT}
+                
+                if agent.current_state not in workflow_states and agent.current_state != AgentState.ERROR:
+                    # If the cycle finished normally and not in a workflow state, set agent to IDLE
+                    await self.workflow_manager.change_agent_state(agent, AgentState.IDLE)
+                # Otherwise, the agent is already in the correct state (set by workflow manager)
 
         except Exception as e:
             self.logger.error(f"Critical error during agent cycle for {agent.agent_id}: {e}", exc_info=True)
@@ -159,3 +178,31 @@ class AgentCycleHandler:
                 await self.workflow_manager.change_agent_state(agent, AgentState.ERROR)
             except Exception as e2:
                 self.logger.critical(f"Could not transition agent {agent.agent_id} to ERROR state after critical failure: {e2}")
+    
+    async def _check_auto_transitions(self, agent: Agent):
+        """
+        Check if the agent should automatically transition to a new state based on its current context.
+        """
+        from core.ai.agents import AgentRole, AgentState
+        
+        # PM in ACTIVATE_WORKERS state: check if all tasks are assigned
+        if agent.role == AgentRole.PM and agent.current_state == AgentState.ACTIVATE_WORKERS:
+            # Check if all workers have been assigned tasks
+            worker_map = agent.memory.short_term.get("worker_map", {})
+            tasks = agent.memory.short_term.get("tasks", [])
+            
+            if len(worker_map) > 0 and len(worker_map) == len(tasks):
+                # Check message history to see if we've sent messages to all workers
+                workers_assigned: set[str] = set()
+                for msg in reversed(agent.message_history):
+                    if msg.role == "tool" and "send_message" in str(msg.content):
+                        # Extract worker ID from tool result
+                        for worker_id in worker_map.values():
+                            if worker_id in str(msg.content):
+                                workers_assigned.add(str(worker_id))
+                
+                # If all workers have been assigned, transition to MANAGE
+                if len(workers_assigned) == len(worker_map):
+                    self.logger.info(f"All tasks assigned for PM {agent.agent_id}. Auto-transitioning to MANAGE state.")
+                    await self.workflow_manager.change_agent_state(agent, AgentState.MANAGE,
+                                                                   context="All tasks have been assigned to workers. Now monitor their progress.")

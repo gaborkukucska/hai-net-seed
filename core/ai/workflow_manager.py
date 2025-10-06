@@ -9,7 +9,7 @@ import time
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
-from core.ai.agents import Agent, AgentState, AgentStateTransitions, AgentRole
+from core.ai.agents import Agent, AgentState, AgentRole
 from core.ai.llm import LLMMessage
 
 if TYPE_CHECKING:
@@ -132,18 +132,21 @@ class WorkflowManager:
         1. Create a new WORKER agent.
         2. Map the worker to the task_id in the PM's memory.
         3. Notify the PM agent.
-        4. Reschedule the PM to continue building its team.
+        4. Check if all workers are created, if so transition to ACTIVATE_WORKERS.
+        5. Otherwise, reschedule the PM to create the next worker.
         """
         if not self.agent_manager:
             self.logger.error("Cannot process worker creation: AgentManager not set")
             return
 
         task_id = request.get("task_id")
+        specialty = request.get("specialty", "general")
+        
         if not task_id:
             self.logger.error(f"PM {pm_agent.agent_id} requested worker creation without a task_id.")
             return
 
-        self.logger.info(f"PM {pm_agent.agent_id} is creating a worker for task {task_id}")
+        self.logger.info(f"PM {pm_agent.agent_id} is creating a worker for task {task_id} with specialty: {specialty}")
 
         try:
             # 1. Create Worker agent
@@ -156,19 +159,41 @@ class WorkflowManager:
             if "worker_map" not in pm_agent.memory.short_term:
                 pm_agent.memory.short_term["worker_map"] = {}
             pm_agent.memory.short_term["worker_map"][task_id] = worker_agent_id
+            
+            # Track how many workers have been created
+            if "workers_created_count" not in pm_agent.memory.short_term:
+                pm_agent.memory.short_term["workers_created_count"] = 0
+            pm_agent.memory.short_term["workers_created_count"] += 1
 
             # 3. Notify PM
+            workers_count = pm_agent.memory.short_term["workers_created_count"]
+            total_tasks = len(pm_agent.memory.short_term.get("tasks", []))
+            
             system_message = LLMMessage(
                 role="system",
-                content=f"[SYSTEM] Worker agent {worker_agent_id} has been created for task {task_id}. You can now assign the task details to this worker.",
+                content=f"[SYSTEM] ✅ Worker agent {worker_agent_id} has been created for task {task_id} (Specialty: {specialty}).\n\nWorkers created: {workers_count}/{total_tasks}",
                 timestamp=time.time()
             )
             pm_agent.message_history.append(system_message)
 
-            self.logger.info(f"✅ Worker {worker_agent_id} created for task {task_id}")
+            self.logger.info(f"✅ Worker {worker_agent_id} created for task {task_id} ({workers_count}/{total_tasks} complete)")
 
-            # 4. Reschedule PM to continue building team or move to next state
-            await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
+            # 4. Check if all workers are created
+            if workers_count >= total_tasks:
+                # All workers created, transition to ACTIVATE_WORKERS
+                self.logger.info(f"All workers created for PM {pm_agent.agent_id}. Transitioning to ACTIVATE_WORKERS.")
+                await self.change_agent_state(pm_agent, AgentState.ACTIVATE_WORKERS,
+                                             context=f"All {workers_count} workers have been created. Now assign tasks to each worker.")
+                await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
+            else:
+                # More workers needed, reschedule PM to create next worker
+                remaining = total_tasks - workers_count
+                pm_agent.message_history.append(LLMMessage(
+                    role="system",
+                    content=f"[SYSTEM] You still need to create {remaining} more worker(s). Please create the next worker now.",
+                    timestamp=time.time()
+                ))
+                await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
 
         except Exception as e:
             self.logger.error(f"Worker creation workflow failed for PM {pm_agent.agent_id}: {e}")
