@@ -62,7 +62,7 @@ class ConstitutionalNetworkListener(ServiceListener):
                         "reason": "Failed constitutional validation"
                     })
             except Exception as e:
-                self.logger.error(f"Failed to process discovered service: {e}")
+                self.logger.error(f"Failed to process discovered service: {e}", category="discovery", function="add_service")
     
     def remove_service(self, zeroconf: Zeroconf, service_type: str, name: str):
         """Handle service removal"""
@@ -82,7 +82,7 @@ class ConstitutionalNetworkListener(ServiceListener):
                 node.last_seen = time.time()
                 self.discovery._update_discovered_node(node)
             except Exception as e:
-                self.logger.error(f"Failed to update service: {e}")
+                self.logger.error(f"Failed to update service: {e}", category="discovery", function="update_service")
 
 
 class LocalDiscovery:
@@ -128,7 +128,7 @@ class LocalDiscovery:
         """
         try:
             if self.running:
-                self.logger.warning("Discovery already running")
+                self.logger.warning("Discovery already running", category="discovery", function="start_discovery")
                 return True
             
             # Initialize Zeroconf
@@ -153,12 +153,12 @@ class LocalDiscovery:
                 "discovery_started",
                 local_processing=True
             )
-            self.logger.info(f"HAI-Net discovery started on {self.service_type}")
+            self.logger.info(f"HAI-Net discovery started on {self.service_type}", category="discovery", function="start_discovery")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start discovery: {e}")
+            self.logger.error(f"Failed to start discovery: {e}", category="discovery", function="start_discovery")
             return False
     
     def stop_discovery(self):
@@ -185,10 +185,10 @@ class LocalDiscovery:
                 "discovery_stopped",
                 local_processing=True
             )
-            self.logger.info("HAI-Net discovery stopped")
+            self.logger.info("HAI-Net discovery stopped", category="discovery", function="stop_discovery")
             
         except Exception as e:
-            self.logger.error(f"Error stopping discovery: {e}")
+            self.logger.error(f"Error stopping discovery: {e}", category="discovery", function="stop_discovery")
     
     def _register_service(self) -> bool:
         """Register this node as a HAI-Net service"""
@@ -196,7 +196,7 @@ class LocalDiscovery:
             # Get local IP addresses
             local_ips = self._get_local_ip_addresses()
             if not local_ips:
-                self.logger.error("No local IP addresses found")
+                self.logger.error("No local IP addresses found", category="network", function="_register_service")
                 return False
             
             # Prepare service properties (constitutional compliance info)
@@ -222,10 +222,10 @@ class LocalDiscovery:
                         addresses.append(socket.inet_aton(str(addr)))
                     # Note: IPv6 support can be added later
                 except Exception as e:
-                    self.logger.debug(f"Skipping invalid IP {ip}: {e}")
+                    self.logger.debug(f"Skipping invalid IP {ip}: {e}", category="network", function="_register_service")
             
             if not addresses:
-                self.logger.error("No valid IP addresses for service registration")
+                self.logger.error("No valid IP addresses for service registration", category="network", function="_register_service")
                 return False
             
             self.service_info = ServiceInfo(
@@ -249,7 +249,7 @@ class LocalDiscovery:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to register service: {e}")
+            self.logger.error(f"Failed to register service: {e}", category="discovery", function="_register_service")
             return False
     
     def _start_browsing(self):
@@ -262,10 +262,10 @@ class LocalDiscovery:
                 listener=self.listener
             )
             
-            self.logger.info(f"Started browsing for {self.service_type}")
+            self.logger.info(f"Started browsing for {self.service_type}", category="discovery", function="_start_browsing")
             
         except Exception as e:
-            self.logger.error(f"Failed to start browsing: {e}")
+            self.logger.error(f"Failed to start browsing: {e}", category="discovery", function="_start_browsing")
     
     def _get_local_ip_addresses(self) -> List[str]:
         """Get all local IP addresses for this machine"""
@@ -288,7 +288,7 @@ class LocalDiscovery:
                     continue  # Skip problematic interfaces
                     
         except Exception as e:
-            self.logger.debug(f"Error getting network interfaces: {e}")
+            self.logger.debug(f"Error getting network interfaces: {e}", category="network", function="_get_local_ip_addresses")
             
             # Fallback method
             try:
@@ -389,14 +389,14 @@ class LocalDiscovery:
             # Calculate initial trust level
             node.trust_level = self._calculate_trust_level(node)
             
-            self.logger.info(f"Discovered HAI-Net node: {node.node_id} ({node.role}) at {node.address}")
+            self.logger.info(f"Discovered HAI-Net node: {node.node_id} ({node.role}) at {node.address}", category="discovery", function="_add_discovered_node")
             
             # Notify callbacks
             for callback in self.discovery_callbacks:
                 try:
                     callback(node)
                 except Exception as e:
-                    self.logger.error(f"Discovery callback error: {e}")
+                    self.logger.error(f"Discovery callback error: {e}", category="discovery", function="_add_discovered_node")
     
     def _update_discovered_node(self, node: NetworkNode):
         """Update existing discovered node"""
@@ -412,14 +412,14 @@ class LocalDiscovery:
         with self._lock:
             if node_id in self.discovered_nodes:
                 removed_node = self.discovered_nodes.pop(node_id)
-                self.logger.info(f"Removed HAI-Net node: {node_id}")
+                self.logger.info(f"Removed HAI-Net node: {node_id}", category="discovery", function="_remove_discovered_node")
                 
                 # Notify callbacks
                 for callback in self.removal_callbacks:
                     try:
                         callback(node_id)
                     except Exception as e:
-                        self.logger.error(f"Removal callback error: {e}")
+                        self.logger.error(f"Removal callback error: {e}", category="discovery", function="_remove_discovered_node")
     
     def _calculate_trust_level(self, node: NetworkNode) -> float:
         """Calculate trust level for a node based on constitutional compliance"""
@@ -469,7 +469,7 @@ class LocalDiscovery:
                 time.sleep(30)  # Check every 30 seconds
                 
             except Exception as e:
-                self.logger.error(f"Discovery maintenance error: {e}")
+                self.logger.error(f"Discovery maintenance error: {e}", category="discovery", function="_discovery_maintenance_loop")
                 time.sleep(10)  # Shorter sleep on error
     
     def get_discovered_nodes(self, trusted_only: bool = True) -> List[NetworkNode]:

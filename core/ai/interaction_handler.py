@@ -30,10 +30,10 @@ class InteractionHandler:
 
         if not tool_name:
             error_msg = "Malformed tool call: missing 'name'."
-            self.logger.error(error_msg)
+            self.logger.error(f"[{agent.agent_id}] {error_msg}", category="agent", function="execute_tool_call")
             return {"error": error_msg}
 
-        self.logger.info(f"Agent {agent.agent_id} is calling tool '{tool_name}' with args: {tool_args}")
+        self.logger.debug_agent(f"[{agent.agent_id}] Executing tool '{tool_name}' with args: {tool_args}", function="execute_tool_call")
 
         # Inject the sender agent into the tool arguments for context
         tool_args_with_sender = tool_args.copy()

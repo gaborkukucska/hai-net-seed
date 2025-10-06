@@ -36,12 +36,12 @@ class SendMessageTool:
         Returns:
             A dictionary indicating the status of the operation.
         """
-        self.logger.info(f"Agent {sender_agent.agent_id} is sending a message to {target_agent_id}.")
+        self.logger.debug_agent(f"[{sender_agent.agent_id}] Sending message to {target_agent_id} (length={len(message)} chars)", function="execute")
 
         target_agent = self.agent_manager.get_agent(target_agent_id)
         if not target_agent:
             error_msg = f"Target agent with ID '{target_agent_id}' not found."
-            self.logger.error(error_msg)
+            self.logger.error(f"[{sender_agent.agent_id}] {error_msg}", category="agent", function="execute")
             return {"status": "error", "message": error_msg}
 
         # Format the message to include the sender's identity
@@ -59,5 +59,5 @@ class SendMessageTool:
         await self.agent_manager.schedule_cycle(target_agent_id)
 
         success_msg = f"Message successfully sent to agent {target_agent_id}."
-        self.logger.info(success_msg)
+        self.logger.debug_agent(f"[{sender_agent.agent_id}] ✅ Message delivered to {target_agent_id}", function="execute")
         return {"status": "success", "message": success_msg}

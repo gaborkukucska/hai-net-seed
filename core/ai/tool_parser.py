@@ -61,11 +61,11 @@ class ToolCallParser:
             return {"success": True, "tool_calls": tool_calls}
             
         except ET.ParseError as e:
-            self.logger.error(f"XML parsing error: {e}", category="parsing", function="parse_tool_calls")
+            self.logger.debug(f"XML parsing error, attempting fallback: {e}", category="ai", function="parse_tool_calls")
             # Attempt fallback parsing
             return self._fallback_parse(text)
         except Exception as e:
-            self.logger.error(f"Tool call parsing error: {e}", category="parsing", function="parse_tool_calls")
+            self.logger.error(f"Tool call parsing error: {e}", category="ai", function="parse_tool_calls")
             return {"success": False, "tool_calls": [], "error": str(e)}
     
     def _parse_single_tool_call(self, tool_call_elem: ET.Element) -> Optional[Dict[str, Any]]:
@@ -82,7 +82,7 @@ class ToolCallParser:
             # Get tool name
             name_elem = tool_call_elem.find("name")
             if name_elem is None or not name_elem.text:
-                self.logger.error("Tool call missing <name> element", category="validation", function="_parse_single_tool_call")
+                self.logger.debug("Tool call missing <name> element", category="ai", function="_parse_single_tool_call")
                 return None
             
             tool_name = name_elem.text.strip()
@@ -90,7 +90,7 @@ class ToolCallParser:
             # Get args
             args_elem = tool_call_elem.find("args")
             if args_elem is None:
-                self.logger.warning(f"Tool call '{tool_name}' has no <args> element", category="validation", function="_parse_single_tool_call")
+                self.logger.debug(f"Tool call '{tool_name}' has no <args> element, using empty args", category="ai", function="_parse_single_tool_call")
                 return {"name": tool_name, "args": {}}
             
             # Parse arguments
@@ -103,7 +103,7 @@ class ToolCallParser:
             return {"name": tool_name, "args": args}
             
         except Exception as e:
-            self.logger.error(f"Error parsing single tool call: {e}", category="parsing", function="_parse_single_tool_call")
+            self.logger.error(f"Error parsing single tool call: {e}", category="ai", function="_parse_single_tool_call")
             return None
     
     def _fallback_parse(self, text: str) -> Dict[str, Any]:
@@ -131,11 +131,11 @@ class ToolCallParser:
             
             tool_call: Dict[str, Any] = {"name": tool_name, "args": args}
             
-            self.logger.warning("Using fallback parser - may be incomplete", category="parsing", function="_fallback_parse")
+            self.logger.debug("Using fallback parser - may be incomplete", category="ai", function="_fallback_parse")
             return {"success": True, "tool_calls": [tool_call], "fallback": True}
             
         except Exception as e:
-            self.logger.error(f"Fallback parsing also failed: {e}", category="parsing", function="_fallback_parse")
+            self.logger.error(f"Fallback parsing also failed: {e}", category="ai", function="_fallback_parse")
             return {"success": False, "tool_calls": [], "error": f"Both XML and fallback parsing failed: {e}"}
     
     def extract_plan(self, text: str) -> Optional[Dict[str, Any]]:
@@ -174,7 +174,7 @@ class ToolCallParser:
             return plan
             
         except Exception as e:
-            self.logger.error(f"Error extracting plan: {e}", category="parsing", function="extract_plan")
+            self.logger.error(f"Error extracting plan: {e}", category="ai", function="extract_plan")
             return None
     
     def extract_task_list(self, text: str) -> Optional[List[Dict[str, Any]]]:
@@ -211,7 +211,7 @@ class ToolCallParser:
             return tasks if tasks else None
             
         except Exception as e:
-            self.logger.error(f"Error extracting task list: {e}", category="parsing", function="extract_task_list")
+            self.logger.error(f"Error extracting task list: {e}", category="ai", function="extract_task_list")
             return None
 
     def extract_create_worker_request(self, text: str) -> Optional[Dict[str, Any]]:
@@ -245,5 +245,5 @@ class ToolCallParser:
             return request if "task_id" in request else None
 
         except Exception as e:
-            self.logger.error(f"Error extracting create_worker_request: {e}", category="parsing", function="extract_create_worker_request")
+            self.logger.error(f"Error extracting create_worker_request: {e}", category="ai", function="extract_create_worker_request")
             return None

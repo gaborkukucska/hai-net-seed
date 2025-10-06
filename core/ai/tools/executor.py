@@ -27,26 +27,31 @@ class ToolExecutor:
         """
         Auto-discovers and registers available tools.
         """
-        self.logger.info("Initializing and discovering tools...")
+        self.logger.debug_init("Initializing and discovering tools...", function="_initialize_tools")
         # This will be expanded to scan for tool plugins.
         send_message_tool = SendMessageTool(self.settings, self.agent_manager)
         self.register_tool("send_message", send_message_tool.execute)
-        self.logger.info("Tool discovery complete.")
+        self.logger.info(f"Tool discovery complete. Registered {len(self.tools)} tool(s)", category="init", function="_initialize_tools")
 
     def register_tool(self, name: str, tool: Any):
         """Registers a single tool."""
         if name in self.tools:
-            self.logger.warning(f"Tool '{name}' is already registered. Overwriting.")
+            self.logger.warning(f"Tool '{name}' is already registered. Overwriting", category="agent", function="register_tool")
         self.tools[name] = tool
-        self.logger.debug(f"Tool '{name}' registered.")
+        self.logger.debug(f"Tool '{name}' registered successfully", category="agent", function="register_tool")
 
     async def execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """
         Executes a registered tool by name with the given arguments.
         """
-        self.logger.info(f"Attempting to execute tool '{name}' with args: {args}")
+        # Get sender_agent for logging context if available
+        sender_id = args.get('sender_agent', 'unknown')
+        sender_id = getattr(sender_id, 'agent_id', str(sender_id))
+        
+        self.logger.debug_agent(f"[{sender_id}] Executing tool '{name}' with {len(args)-1} arg(s)", function="execute_tool")
+        
         if name not in self.tools:
-            self.logger.error(f"Tool '{name}' not found.")
+            self.logger.error(f"[{sender_id}] Tool '{name}' not found", category="agent", function="execute_tool")
             return {"error": f"Tool '{name}' not found."}
 
         try:
@@ -56,10 +61,10 @@ class ToolExecutor:
             else:
                 result = tool_func(**args)
 
-            self.logger.info(f"Tool '{name}' executed successfully.")
+            self.logger.debug_agent(f"[{sender_id}] Tool '{name}' executed successfully", function="execute_tool")
             return {"result": result}
         except Exception as e:
-            self.logger.error(f"Error executing tool '{name}': {e}")
+            self.logger.error(f"[{sender_id}] Error executing tool '{name}': {e}", category="agent", function="execute_tool")
             return {"error": f"Error executing tool '{name}': {e}"}
 
     def get_available_tools(self) -> List[str]:

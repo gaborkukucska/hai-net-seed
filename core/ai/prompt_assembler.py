@@ -35,7 +35,7 @@ class PromptAssembler:
             prompts_path = Path(__file__).parent.parent.parent / "config" / "prompts.json"
             
             if not prompts_path.exists():
-                self.logger.error(f"Prompts file not found at {prompts_path}")
+                self.logger.warning(f"Prompts file not found at {prompts_path}, using defaults", category="init", function="_load_prompts_from_file")
                 self._initialize_default_prompts()
                 return
             
@@ -69,15 +69,15 @@ class PromptAssembler:
             self.state_guidance = prompts_data["state_guidance"]
             self.tools_description = prompts_data["tools_description"]
             
-            self.logger.info("Successfully loaded prompts from config/prompts.json")
+            self.logger.info_init("Successfully loaded prompts from config/prompts.json", function="_load_prompts_from_file")
             
         except Exception as e:
-            self.logger.error(f"Error loading prompts from file: {e}")
+            self.logger.error(f"Error loading prompts from file: {e}", category="init", function="_load_prompts_from_file")
             self._initialize_default_prompts()
     
     def _initialize_default_prompts(self):
         """Fallback default prompts if file loading fails"""
-        self.logger.warning("Using fallback default prompts")
+        self.logger.debug_init("Initializing fallback default prompts", function="_initialize_default_prompts")
         
         # Minimal default prompts
         self.admin_prompts = {
@@ -297,8 +297,7 @@ Review agent outputs and flag any violations."""
             prompt = self.guardian_prompts.get(agent.current_state, "")
         
         # Debug logging
-        self.logger.info(f"[DEBUG] Getting system prompt for {agent.role.value} in state {agent.current_state.value}")
-        self.logger.info(f"[DEBUG] Prompt length: {len(prompt)}, starts with: {prompt[:100] if prompt else 'EMPTY'}")
+        self.logger.debug_agent(f"[{agent.agent_id}] Getting system prompt: role={agent.role.value}, state={agent.current_state.value}, prompt_length={len(prompt)}", function="_get_system_prompt")
         
         return prompt
     

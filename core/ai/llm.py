@@ -178,7 +178,7 @@ class ConstitutionalLLMFilter:
             return compliance_result
             
         except Exception as e:
-            self.logger.error(f"Compliance check failed: {e}")
+            self.logger.error(f"Compliance check failed: {e}", category="ai", function="check_prompt_compliance")
             return {
                 "compliant": False,
                 "violations": [{"type": "check_error", "message": str(e)}],
@@ -258,7 +258,7 @@ class ConstitutionalLLMFilter:
             return compliance_result
             
         except Exception as e:
-            self.logger.error(f"Response compliance check failed: {e}")
+            self.logger.error(f"Response compliance check failed: {e}", category="ai", function="check_response_compliance")
             return {
                 "compliant": False,
                 "violations": [{"type": "check_error", "message": str(e)}],
@@ -290,13 +290,13 @@ class OllamaProvider:
         """Initialize Ollama provider"""
         try:
             if aiohttp is None:
-                self.logger.error("aiohttp is not installed, cannot initialize Ollama provider")
+                self.logger.error("aiohttp is not installed, cannot initialize Ollama provider", category="init", function="initialize")
                 return False
             self.session = aiohttp.ClientSession()  # type: ignore
             
             # Check if Ollama is running
             if not await self._check_ollama_availability():
-                self.logger.warning("Ollama service not available")
+                self.logger.warning("Ollama service not available", category="ai", function="initialize")
                 return False
             
             # Load available models
@@ -310,7 +310,7 @@ class OllamaProvider:
             return True
             
         except Exception as e:
-            self.logger.error(f"Ollama initialization failed: {e}")
+            self.logger.error(f"Ollama initialization failed: {e}", category="init", function="initialize")
             return False
     
     async def _check_ollama_availability(self) -> bool:
@@ -349,10 +349,10 @@ class OllamaProvider:
                         )
                         self.available_models.append(model_info)
                     
-                    self.logger.info(f"Loaded {len(self.available_models)} Ollama text generation models")
+                    self.logger.info(f"Loaded {len(self.available_models)} Ollama text generation models", category="ai", function="_load_available_models")
                     
         except Exception as e:
-            self.logger.error(f"Failed to load Ollama models: {e}")
+            self.logger.error(f"Failed to load Ollama models: {e}", category="ai", function="_load_available_models")
     
     async def generate_response(self, messages: List[LLMMessage], model: str,
                               user_did: Optional[str] = None,
@@ -462,7 +462,7 @@ class OllamaProvider:
                 )
                 
         except Exception as e:
-            self.logger.error(f"Ollama generation failed: {e}")
+            self.logger.error(f"Ollama generation failed: {e}", category="ai", function="generate_response")
             
             return LLMResponse(
                 content="I apologize, but I'm currently unable to process your request due to a technical issue. Please try again later.",
@@ -571,10 +571,10 @@ class OllamaProvider:
                 )
                 
         except asyncio.TimeoutError:
-            self.logger.error(f"Ollama streaming timed out after 2 minutes for model: {model}")
+            self.logger.error(f"Ollama streaming timed out after 2 minutes for model: {model}", category="ai", function="stream_response")
             yield "⏱️ The AI model is taking longer than expected to respond (2 minute timeout). This often happens when loading a large model for the first time. Please try again - subsequent requests should be faster once the model is loaded."
         except Exception as e:
-            self.logger.error(f"Ollama streaming failed: {e}")
+            self.logger.error(f"Ollama streaming failed: {e}", category="ai", function="stream_response")
             yield "I apologize, but I'm currently unable to process your request."
     
     def get_available_models(self) -> List[LLMModelInfo]:
@@ -627,7 +627,7 @@ class LLMManager:
                     for node in discovered_nodes:
                         if node.provider_type == LLMProvider.OLLAMA and node.available_models:
                             ollama_url = f"http://{node.address}:{node.port}"
-                            self.logger.info(f"🌐 Trying discovered Ollama at {ollama_url} with {len(node.available_models)} models")
+                            self.logger.info_network(f"Trying discovered Ollama at {ollama_url} with {len(node.available_models)} models", function="initialize")
                             
                             ollama_provider = OllamaProvider(self.settings, ollama_url)
                             
@@ -635,11 +635,11 @@ class LLMManager:
                                 if len(ollama_provider.get_available_models()) > 0:
                                     self.providers[LLMProvider.OLLAMA] = ollama_provider
                                     self.available_models.extend(ollama_provider.get_available_models())
-                                    self.logger.info(f"✅ Using network Ollama at {ollama_url} with {len(ollama_provider.get_available_models())} models")
+                                    self.logger.info_network(f"Using network Ollama at {ollama_url} with {len(ollama_provider.get_available_models())} models", function="initialize")
                                     
                                     # Log available models
                                     for model in ollama_provider.get_available_models():
-                                        self.logger.info(f"   📦 Model: {model.name}")
+                                        self.logger.debug_ai(f"Available model: {model.name}", function="initialize")
                                     
                                     # Found a working provider with models, we're done
                                     self.logger.log_decentralization_event(
@@ -651,7 +651,7 @@ class LLMManager:
                 # Fallback: try local Ollama
                 if getattr(self.settings, 'ollama_enabled', False):
                     ollama_base_url = getattr(self.settings, 'ollama_base_url', "http://localhost:11434")
-                    self.logger.info(f"🔍 Trying local Ollama at {ollama_base_url}")
+                    self.logger.info_init(f"Trying local Ollama at {ollama_base_url}", function="initialize")
                     
                     ollama_provider = OllamaProvider(
                         self.settings,
@@ -662,12 +662,12 @@ class LLMManager:
                         if len(ollama_provider.get_available_models()) > 0:
                             self.providers[LLMProvider.OLLAMA] = ollama_provider
                             self.available_models.extend(ollama_provider.get_available_models())
-                            self.logger.info(f"✅ Using local Ollama with {len(ollama_provider.get_available_models())} models")
+                            self.logger.info_init(f"Using local Ollama with {len(ollama_provider.get_available_models())} models", function="initialize")
                             
                             for model in ollama_provider.get_available_models():
-                                self.logger.info(f"   📦 Model: {model.name}")
+                                self.logger.debug_ai(f"Available model: {model.name}", function="initialize")
                         else:
-                            self.logger.warning("⚠️ Local Ollama has no models installed")
+                            self.logger.warning("Local Ollama has no models installed", category="ai", function="initialize")
                 
                 # TODO: Add other providers (llama.cpp, OpenAI compatible, etc.)
                 
@@ -678,11 +678,11 @@ class LLMManager:
                     )
                     return True
                 else:
-                    self.logger.error("❌ No LLM providers available with models. Network discovery found no services with models, and local Ollama has no models.")
+                    self.logger.error("No LLM providers available with models. Network discovery found no services with models, and local Ollama has no models.", category="init", function="initialize")
                     return False
                 
         except Exception as e:
-            self.logger.error(f"LLM manager initialization failed: {e}")
+            self.logger.error(f"LLM manager initialization failed: {e}", category="init", function="initialize")
             return False
     
     async def generate_response(self, messages: List[LLMMessage], model: str,
@@ -710,7 +710,7 @@ class LLMManager:
                 if not model or not self._model_exists(model):
                     if self.available_models:
                         model = self.available_models[0].name
-                        self.logger.info(f"Auto-selected model: {model}")
+                        self.logger.debug_ai(f"Auto-selected model: {model}", function="generate_response")
                     else:
                         raise Exception("No models available")
                 
@@ -739,7 +739,7 @@ class LLMManager:
                 return response
                 
         except asyncio.TimeoutError:
-            self.logger.error(f"Ollama generation timed out after 2 minutes for model: {model}")
+            self.logger.error(f"Ollama generation timed out after 2 minutes for model: {model}", category="ai", function="generate_response")
             
             return LLMResponse(
                 content="I apologize, but the AI model is taking longer than expected to respond (2 minute timeout reached). This often happens when loading a large model for the first time. Please try again - subsequent requests should be faster once the model is loaded.",
@@ -753,7 +753,7 @@ class LLMManager:
                 metadata={"error": "timeout", "timeout_seconds": 120}
             )
         except Exception as e:
-            self.logger.error(f"Ollama generation failed: {e}")
+            self.logger.error(f"Ollama generation failed: {e}", category="ai", function="generate_response")
             
             return LLMResponse(
                 content="I apologize, but I'm currently unable to process your request due to a technical issue. Please try again later.",
@@ -789,7 +789,7 @@ class LLMManager:
             if not model or not self._model_exists(model):
                 if self.available_models:
                     model = self.available_models[0].name
-                    self.logger.info(f"Auto-selected model for streaming: {model}")
+                    self.logger.debug_ai(f"Auto-selected model for streaming: {model}", function="stream_response")
                 else:
                     yield "Error: No models available. Please ensure Ollama or another LLM provider is running."
                     return
@@ -812,7 +812,7 @@ class LLMManager:
                 yield chunk
                 
         except Exception as e:
-            self.logger.error(f"LLM streaming failed: {e}")
+            self.logger.error(f"LLM streaming failed: {e}", category="ai", function="stream_response")
             yield f"I apologize, but I'm currently unable to process your request. Error: {str(e)}"
     
     def _model_exists(self, model: str) -> bool:

@@ -38,13 +38,13 @@ class AgentCycleHandler:
         Runs a full processing cycle for a given agent, based on the TrippleEffect architecture.
         """
         if agent.current_state == AgentState.PROCESSING:
-            self.logger.warning(f"Agent {agent.agent_id} is already processing. Aborting new cycle.")
+            self.logger.warning(f"Agent {agent.agent_id} is already processing. Aborting new cycle.", category="agent", function="run_cycle")
             return
 
         try:
             # 1. Prepare LLM call data BEFORE transitioning to PROCESSING
             # This ensures the system prompt matches the agent's actual state
-            self.logger.info(f"Starting cycle for agent {agent.agent_id} in state {agent.current_state.value}")
+            self.logger.debug_agent(f"Starting cycle for agent {agent.agent_id} (role={agent.role.value}, state={agent.current_state.value})", function="run_cycle")
             messages_for_llm = self.prompt_assembler.prepare_llm_call_data(agent)
 
             # 2. Set agent state to PROCESSING
@@ -58,12 +58,12 @@ class AgentCycleHandler:
                 event_type = event.get("type")
 
                 if event_type == "agent_thought":
-                    self.logger.info(f"Agent {agent.agent_id} Thought: {event.get('content')}")
+                    self.logger.debug_agent(f"[{agent.agent_id}] Thought: {event.get('content')}", function="run_cycle")
                     # In a real system, this would be logged to a DB for observability.
 
                 elif event_type == "tool_requests":
                     tool_calls = event.get("calls", [])
-                    self.logger.info(f"Agent {agent.agent_id} requests tools: {tool_calls}")
+                    self.logger.debug_agent(f"[{agent.agent_id}] Requesting {len(tool_calls)} tool(s): {[tc.get('name') for tc in tool_calls]}", function="run_cycle")
 
                     for tool_call in tool_calls:
                         result = await self.interaction_handler.execute_tool_call(agent, tool_call)
@@ -84,13 +84,13 @@ class AgentCycleHandler:
                     if new_state_str:
                         new_state = AgentState(new_state_str)
                         await self.workflow_manager.change_agent_state(agent, new_state)
-                        self.logger.info(f"Agent {agent.agent_id} requested state change to {new_state.value}")
+                        self.logger.info(f"[{agent.agent_id}] State change requested: {agent.current_state.value} -> {new_state.value}", category="agent", function="run_cycle")
                     break
 
                 elif event_type == "plan_created":
                     # Admin created a plan - trigger workflow
                     plan = event.get("plan", {})
-                    self.logger.info(f"Agent {agent.agent_id} created plan: {plan.get('project_name', 'Unnamed')}")
+                    self.logger.info(f"[{agent.agent_id}] Plan created: {plan.get('project_name', 'Unnamed')}", category="agent", function="run_cycle")
                     
                     # Store plan in agent's memory for workflow manager
                     agent.message_history.append(LLMMessage(
@@ -106,7 +106,7 @@ class AgentCycleHandler:
                 elif event_type == "task_list_created":
                     # PM created task list
                     tasks = event.get("tasks", [])
-                    self.logger.info(f"Agent {agent.agent_id} created {len(tasks)} tasks")
+                    self.logger.info(f"[{agent.agent_id}] Task list created: {len(tasks)} tasks defined", category="agent", function="run_cycle")
                     
                     agent.message_history.append(LLMMessage(
                         role="assistant",
@@ -128,7 +128,7 @@ class AgentCycleHandler:
                 elif event_type == "create_worker_requested":
                     # PM requested to create a worker
                     request = event.get("request", {})
-                    self.logger.info(f"Agent {agent.agent_id} requested worker creation for task: {request.get('task_id')}")
+                    self.logger.debug_agent(f"[{agent.agent_id}] Worker creation requested for task_id={request.get('task_id')}, specialty={request.get('specialty')}", function="run_cycle")
                     
                     await self.workflow_manager.process_worker_creation(agent, request)
                     
@@ -142,7 +142,7 @@ class AgentCycleHandler:
                     # In a real system, the guardian would be more deeply integrated.
                     # For now, we log and proceed.
                     # self.guardian.check(content)
-                    self.logger.info(f"Agent {agent.agent_id} final response: {content}")
+                    self.logger.debug_agent(f"[{agent.agent_id}] Final response generated (length={len(content)} chars)", function="run_cycle")
 
                     agent.message_history.append(LLMMessage(role="assistant", content=content, timestamp=time.time()))
                     
@@ -151,7 +151,7 @@ class AgentCycleHandler:
                     break
 
                 elif event_type == "error":
-                    self.logger.error(f"Agent {agent.agent_id} reported an error: {event.get('content')}")
+                    self.logger.error(f"[{agent.agent_id}] Agent reported error: {event.get('content')}", category="agent", function="run_cycle")
                     await self.workflow_manager.change_agent_state(agent, AgentState.ERROR)
                     break
 
@@ -173,11 +173,11 @@ class AgentCycleHandler:
                 # Otherwise, the agent is already in the correct state (set by workflow manager)
 
         except Exception as e:
-            self.logger.error(f"Critical error during agent cycle for {agent.agent_id}: {e}", exc_info=True)
+            self.logger.error(f"[{agent.agent_id}] Critical error during agent cycle: {e}", category="agent", function="run_cycle", exc_info=True)
             try:
                 await self.workflow_manager.change_agent_state(agent, AgentState.ERROR)
             except Exception as e2:
-                self.logger.critical(f"Could not transition agent {agent.agent_id} to ERROR state after critical failure: {e2}")
+                self.logger.critical(f"[{agent.agent_id}] Could not transition to ERROR state after critical failure: {e2}", category="agent", function="run_cycle")
     
     async def _check_auto_transitions(self, agent: Agent):
         """
@@ -203,6 +203,6 @@ class AgentCycleHandler:
                 
                 # If all workers have been assigned, transition to MANAGE
                 if len(workers_assigned) == len(worker_map):
-                    self.logger.info(f"All tasks assigned for PM {agent.agent_id}. Auto-transitioning to MANAGE state.")
+                    self.logger.info(f"[{agent.agent_id}] All {len(worker_map)} tasks assigned. Auto-transitioning to MANAGE state", category="agent", function="_check_auto_transitions")
                     await self.workflow_manager.change_agent_state(agent, AgentState.MANAGE,
                                                                    context="All tasks have been assigned to workers. Now monitor their progress.")

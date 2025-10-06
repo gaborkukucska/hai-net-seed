@@ -35,7 +35,7 @@ class WorkflowManager:
         Injects a guidance message into the agent's history beforehand.
         """
         try:
-            self.logger.info(f"Requesting state transition for agent {agent.agent_id} from {agent.current_state.value} to {new_state.value}")
+            self.logger.debug_agent(f"[{agent.agent_id}] State transition requested: {agent.current_state.value} -> {new_state.value}", function="change_agent_state")
 
             # Add state transition guidance message to provide context to the agent for its next action
             from core.ai.prompt_assembler import PromptAssembler
@@ -46,10 +46,10 @@ class WorkflowManager:
             # Call the agent's public state transition method
             await agent.transition_state(new_state)
             
-            self.logger.info(f"Agent {agent.agent_id} successfully transitioned to {new_state.value}")
+            self.logger.info(f"[{agent.agent_id}] State transition complete: {new_state.value}", category="agent", function="change_agent_state")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to transition agent {agent.agent_id} to state {new_state.value}: {e}")
+            self.logger.error(f"[{agent.agent_id}] State transition failed ({agent.current_state.value} -> {new_state.value}): {e}", category="agent", function="change_agent_state")
             return False
 
     async def process_plan_creation(self, admin_agent: Agent, plan: Dict[str, Any]):
@@ -62,16 +62,16 @@ class WorkflowManager:
         3. Transition PM to STARTUP state
         """
         if not self.agent_manager:
-            self.logger.error("Cannot process plan creation: AgentManager not set")
+            self.logger.error("Cannot process plan creation: AgentManager not set", category="agent", function="process_plan_creation")
             return
         
-        self.logger.info(f"Starting ProjectCreationWorkflow for plan: {plan.get('project_name', 'Unnamed')}")
+        self.logger.info(f"[{admin_agent.agent_id}] Starting ProjectCreationWorkflow for plan: {plan.get('project_name', 'Unnamed')}", category="agent", function="process_plan_creation")
         
         try:
             # 1. Create PM agent
             pm_agent_id = await self.agent_manager.create_agent(AgentRole.PM)
             if not pm_agent_id:
-                self.logger.error("Failed to create PM agent for project")
+                self.logger.error(f"[{admin_agent.agent_id}] Failed to create PM agent for project", category="agent", function="process_plan_creation")
                 return
             
             pm_agent = self.agent_manager.get_agent(pm_agent_id)
@@ -98,10 +98,10 @@ class WorkflowManager:
                 timestamp=time.time()
             ))
             
-            self.logger.info(f"✅ ProjectCreationWorkflow complete: PM {pm_agent_id} created and started")
+            self.logger.info(f"[{admin_agent.agent_id}] ✅ ProjectCreationWorkflow complete: PM {pm_agent_id} created and started", category="agent", function="process_plan_creation")
             
         except Exception as e:
-            self.logger.error(f"ProjectCreationWorkflow failed: {e}")
+            self.logger.error(f"[{admin_agent.agent_id}] ProjectCreationWorkflow failed: {e}", category="agent", function="process_plan_creation")
 
     async def process_task_list_creation(self, pm_agent: Agent, tasks: List[Dict[str, Any]]):
         """
@@ -111,7 +111,7 @@ class WorkflowManager:
         1. Store tasks in PM's memory
         2. Transition PM to BUILD_TEAM_TASKS state
         """
-        self.logger.info(f"PM {pm_agent.agent_id} created {len(tasks)} tasks")
+        self.logger.debug_agent(f"[{pm_agent.agent_id}] Processing task list creation: {len(tasks)} tasks", function="process_task_list_creation")
         
         # Store tasks in PM's memory for later use
         pm_agent.memory.short_term["tasks"] = tasks
@@ -136,23 +136,23 @@ class WorkflowManager:
         5. Otherwise, reschedule the PM to create the next worker.
         """
         if not self.agent_manager:
-            self.logger.error("Cannot process worker creation: AgentManager not set")
+            self.logger.error("Cannot process worker creation: AgentManager not set", category="agent", function="process_worker_creation")
             return
 
         task_id = request.get("task_id")
         specialty = request.get("specialty", "general")
         
         if not task_id:
-            self.logger.error(f"PM {pm_agent.agent_id} requested worker creation without a task_id.")
+            self.logger.error(f"[{pm_agent.agent_id}] Worker creation requested without task_id", category="agent", function="process_worker_creation")
             return
 
-        self.logger.info(f"PM {pm_agent.agent_id} is creating a worker for task {task_id} with specialty: {specialty}")
+        self.logger.debug_agent(f"[{pm_agent.agent_id}] Creating worker for task_id={task_id}, specialty={specialty}", function="process_worker_creation")
 
         try:
             # 1. Create Worker agent
             worker_agent_id = await self.agent_manager.create_agent(AgentRole.WORKER)
             if not worker_agent_id:
-                self.logger.error(f"Failed to create worker agent for task {task_id}")
+                self.logger.error(f"[{pm_agent.agent_id}] Failed to create worker agent for task {task_id}", category="agent", function="process_worker_creation")
                 return
 
             # 2. Map worker to task in PM's memory
@@ -176,12 +176,12 @@ class WorkflowManager:
             )
             pm_agent.message_history.append(system_message)
 
-            self.logger.info(f"✅ Worker {worker_agent_id} created for task {task_id} ({workers_count}/{total_tasks} complete)")
+            self.logger.info(f"[{pm_agent.agent_id}] ✅ Worker {worker_agent_id} created for task {task_id} ({workers_count}/{total_tasks})", category="agent", function="process_worker_creation")
 
             # 4. Check if all workers are created
             if workers_count >= total_tasks:
                 # All workers created, transition to ACTIVATE_WORKERS
-                self.logger.info(f"All workers created for PM {pm_agent.agent_id}. Transitioning to ACTIVATE_WORKERS.")
+                self.logger.info(f"[{pm_agent.agent_id}] All {workers_count} workers created. Transitioning to ACTIVATE_WORKERS", category="agent", function="process_worker_creation")
                 await self.change_agent_state(pm_agent, AgentState.ACTIVATE_WORKERS,
                                              context=f"All {workers_count} workers have been created. Now assign tasks to each worker.")
                 await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
@@ -196,4 +196,4 @@ class WorkflowManager:
                 await pm_agent.manager.schedule_cycle(pm_agent.agent_id)
 
         except Exception as e:
-            self.logger.error(f"Worker creation workflow failed for PM {pm_agent.agent_id}: {e}")
+            self.logger.error(f"[{pm_agent.agent_id}] Worker creation workflow failed: {e}", category="agent", function="process_worker_creation")

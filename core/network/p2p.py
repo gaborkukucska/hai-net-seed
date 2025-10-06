@@ -118,7 +118,7 @@ class P2PManager:
         """
         try:
             if self.running:
-                self.logger.warning("P2P service already running")
+                self.logger.warning("P2P service already running", category="network", function="start_p2p_service")
                 return True
             
             # Get or create event loop
@@ -146,12 +146,12 @@ class P2PManager:
                 "p2p_service_started",
                 local_processing=True
             )
-            self.logger.info(f"P2P service started on port {self.listen_port}")
+            self.logger.info_network(f"P2P service started on port {self.listen_port}", function="start_p2p_service")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start P2P service: {e}")
+            self.logger.error(f"Failed to start P2P service: {e}", category="network", function="start_p2p_service")
             return False
     
     async def stop_p2p_service(self):
@@ -173,10 +173,10 @@ class P2PManager:
                 "p2p_service_stopped",
                 local_processing=True
             )
-            self.logger.info("P2P service stopped")
+            self.logger.info_network("P2P service stopped", function="stop_p2p_service")
             
         except Exception as e:
-            self.logger.error(f"Error stopping P2P service: {e}")
+            self.logger.error(f"Error stopping P2P service: {e}", category="network", function="stop_p2p_service")
     
     async def connect_to_peer(self, node: NetworkNode) -> bool:
         """
@@ -185,7 +185,7 @@ class P2PManager:
         """
         try:
             if node.node_id in self.connections:
-                self.logger.debug(f"Already connected to {node.node_id}")
+                self.logger.debug_network(f"Already connected to {node.node_id}", function="connect_to_peer")
                 return True
             
             # Constitutional compliance check
@@ -198,7 +198,7 @@ class P2PManager:
             
             # Check connection limits (community focus principle)
             if len(self.connections) >= self.max_connections:
-                self.logger.warning(f"Connection limit reached ({self.max_connections})")
+                self.logger.warning(f"Connection limit reached ({self.max_connections})", category="network", function="connect_to_peer")
                 return False
             
             # Establish TCP connection
@@ -208,10 +208,10 @@ class P2PManager:
                     timeout=10.0
                 )
             except asyncio.TimeoutError:
-                self.logger.warning(f"Connection timeout to {node.node_id}")
+                self.logger.warning(f"Connection timeout to {node.node_id}", category="network", function="connect_to_peer")
                 return False
             except Exception as e:
-                self.logger.warning(f"Failed to connect to {node.node_id}: {e}")
+                self.logger.warning(f"Failed to connect to {node.node_id}: {e}", category="network", function="connect_to_peer")
                 return False
             
             # Create peer connection
@@ -236,12 +236,12 @@ class P2PManager:
                 f"peer_connected: {node.node_id}",
                 local_processing=True
             )
-            self.logger.info(f"Connected to peer: {node.node_id} at {node.address}:{node.port}")
+            self.logger.info_network(f"Connected to peer: {node.node_id} at {node.address}:{node.port}", function="connect_to_peer")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Error connecting to peer {node.node_id}: {e}")
+            self.logger.error(f"Error connecting to peer {node.node_id}: {e}", category="network", function="connect_to_peer")
             return False
     
     async def disconnect_from_peer(self, node_id: str):
@@ -256,7 +256,7 @@ class P2PManager:
                     f"peer_disconnected: {node_id}",
                     local_processing=True
                 )
-                self.logger.info(f"Disconnected from peer: {node_id}")
+                self.logger.info_network(f"Disconnected from peer: {node_id}", function="disconnect_from_peer")
     
     async def send_message(self, receiver_id: str, message_type: MessageType, content: Dict[str, Any]) -> bool:
         """
@@ -276,12 +276,12 @@ class P2PManager:
             # Check if connected to peer
             async with self._lock:
                 if receiver_id not in self.connections:
-                    self.logger.warning(f"Not connected to peer: {receiver_id}")
+                    self.logger.warning(f"Not connected to peer: {receiver_id}", category="network", function="send_message")
                     return False
                 
                 connection = self.connections[receiver_id]
                 if not connection.connected:
-                    self.logger.warning(f"Connection to {receiver_id} is not active")
+                    self.logger.warning(f"Connection to {receiver_id} is not active", category="network", function="send_message")
                     return False
             
             # Create message
@@ -310,7 +310,7 @@ class P2PManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Error sending message to {receiver_id}: {e}")
+            self.logger.error(f"Error sending message to {receiver_id}: {e}", category="network", function="send_message")
             return False
     
     async def broadcast_message(self, message_type: MessageType, content: Dict[str, Any], trusted_only: bool = True) -> int:
@@ -358,7 +358,7 @@ class P2PManager:
             return sent_count
             
         except Exception as e:
-            self.logger.error(f"Error broadcasting message: {e}")
+            self.logger.error(f"Error broadcasting message: {e}", category="network", function="broadcast_message")
             return 0
     
     async def _handle_incoming_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -368,7 +368,7 @@ class P2PManager:
             peer_addr = writer.get_extra_info('peername')
             peer_ip = peer_addr[0] if peer_addr else "unknown"
             
-            self.logger.debug(f"Incoming connection from {peer_ip}")
+            self.logger.debug_network(f"Incoming connection from {peer_ip}", function="_handle_incoming_connection")
             
             # Create temporary connection for handshake
             temp_connection = PeerConnection(
@@ -396,7 +396,7 @@ class P2PManager:
                 )
                 
                 if handshake_message.message_type != MessageType.HANDSHAKE:
-                    self.logger.warning(f"Expected handshake from {peer_ip}, got {handshake_message.message_type}")
+                    self.logger.warning(f"Expected handshake from {peer_ip}, got {handshake_message.message_type}", category="network", function="_handle_incoming_connection")
                     await self._close_connection(temp_connection)
                     return
                 
@@ -414,7 +414,7 @@ class P2PManager:
                 
                 # Check connection limits
                 if len(self.connections) >= self.max_connections:
-                    self.logger.warning(f"Connection limit reached, rejecting {node_id}")
+                    self.logger.warning(f"Connection limit reached, rejecting {node_id}", category="network", function="_handle_incoming_connection")
                     await self._close_connection(temp_connection)
                     return
                 
@@ -438,14 +438,14 @@ class P2PManager:
                     f"incoming_peer_accepted: {node_id}",
                     local_processing=True
                 )
-                self.logger.info(f"Accepted incoming connection from {node_id}")
+                self.logger.info_network(f"Accepted incoming connection from {node_id}", function="_handle_incoming_connection")
                 
             except asyncio.TimeoutError:
-                self.logger.warning(f"Handshake timeout from {peer_ip}")
+                self.logger.warning(f"Handshake timeout from {peer_ip}", category="network", function="_handle_incoming_connection")
                 await self._close_connection(temp_connection)
             
         except Exception as e:
-            self.logger.error(f"Error handling incoming connection: {e}")
+            self.logger.error(f"Error handling incoming connection: {e}", category="network", function="_handle_incoming_connection")
             if 'temp_connection' in locals():
                 await self._close_connection(temp_connection)
     
@@ -466,15 +466,15 @@ class P2PManager:
                 except asyncio.TimeoutError:
                     # Check if connection is still alive via heartbeat
                     if time.time() - connection.last_heartbeat > 300:  # 5 minutes
-                        self.logger.info(f"Connection timeout for {connection.node.node_id}")
+                        self.logger.info_network(f"Connection timeout for {connection.node.node_id}", function="_handle_peer_connection")
                         break
                     
                 except Exception as e:
-                    self.logger.error(f"Error in peer connection {connection.node.node_id}: {e}")
+                    self.logger.error(f"Error in peer connection {connection.node.node_id}: {e}", category="network", function="_handle_peer_connection")
                     break
             
         except Exception as e:
-            self.logger.error(f"Peer connection handler error for {connection.node.node_id}: {e}")
+            self.logger.error(f"Peer connection handler error for {connection.node.node_id}: {e}", category="network", function="_handle_peer_connection")
         
         finally:
             await self._close_connection(connection)
@@ -496,7 +496,7 @@ class P2PManager:
             await connection.writer.drain()
             
         except Exception as e:
-            self.logger.error(f"Error sending message to {connection.node.node_id}: {e}")
+            self.logger.error(f"Error sending message to {connection.node.node_id}: {e}", category="network", function="_send_message_to_connection")
             raise
     
     async def _receive_message_from_connection(self, connection: PeerConnection) -> Optional[P2PMessage]:
@@ -522,7 +522,7 @@ class P2PManager:
             # Connection closed
             return None
         except Exception as e:
-            self.logger.error(f"Error receiving message from {connection.node.node_id}: {e}")
+            self.logger.error(f"Error receiving message from {connection.node.node_id}: {e}", category="network", function="_receive_message_from_connection")
             return None
     
     async def _process_received_message(self, message: P2PMessage, sender_id: str):
@@ -550,7 +550,7 @@ class P2PManager:
                 try:
                     callback(message)
                 except Exception as e:
-                    self.logger.error(f"Message callback error: {e}")
+                    self.logger.error(f"Message callback error: {e}", category="network", function="_process_received_message")
             
             self.logger.log_privacy_event(
                 f"message_received: {message.message_type.value}",
@@ -559,7 +559,7 @@ class P2PManager:
             )
             
         except Exception as e:
-            self.logger.error(f"Error processing message from {sender_id}: {e}")
+            self.logger.error(f"Error processing message from {sender_id}: {e}", category="network", function="_process_received_message")
     
     async def _send_handshake(self, connection: PeerConnection):
         """Send handshake message to establish connection"""
@@ -585,7 +585,7 @@ class P2PManager:
     
     async def _handle_handshake(self, message: P2PMessage, sender_id: str):
         """Handle handshake message"""
-        self.logger.debug(f"Handshake received from {sender_id}")
+        self.logger.debug_network(f"Handshake received from {sender_id}", function="_handle_handshake")
         
         # Update connection info if needed
         async with self._lock:
@@ -628,7 +628,7 @@ class P2PManager:
                 await asyncio.sleep(60)  # Check every minute
                 
             except Exception as e:
-                self.logger.error(f"P2P maintenance error: {e}")
+                self.logger.error(f"P2P maintenance error: {e}", category="network", function="_connection_maintenance_loop")
                 await asyncio.sleep(30)  # Shorter sleep on error
     
     async def _heartbeat_loop(self):
@@ -648,13 +648,13 @@ class P2PManager:
                                 {"timestamp": time.time()}
                             )
                         except Exception as e:
-                            self.logger.debug(f"Heartbeat failed to {connection.node.node_id}: {e}")
+                            self.logger.debug_network(f"Heartbeat failed to {connection.node.node_id}", function="_heartbeat_loop")
                 
                 # Sleep before next heartbeat
                 await asyncio.sleep(120)  # Heartbeat every 2 minutes
                 
             except Exception as e:
-                self.logger.error(f"Heartbeat loop error: {e}")
+                self.logger.error(f"Heartbeat loop error: {e}", category="network", function="_heartbeat_loop")
                 await asyncio.sleep(60)
     
     async def _close_connection(self, connection: PeerConnection):
@@ -667,7 +667,7 @@ class P2PManager:
                 await connection.writer.wait_closed()
             
         except Exception as e:
-            self.logger.debug(f"Error closing connection: {e}")
+            self.logger.debug_network(f"Error closing connection", function="_close_connection")
     
     def _validate_peer_constitutional_compliance(self, node: NetworkNode) -> bool:
         """Validate peer constitutional compliance"""
