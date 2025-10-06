@@ -228,6 +228,10 @@ class LocalDiscovery:
                 self.logger.error("No valid IP addresses for service registration", category="network", function="_register_service")
                 return False
             
+            if not self.zeroconf:
+                self.logger.error("Zeroconf not initialized", category="network", function="_register_service")
+                return False
+            
             self.service_info = ServiceInfo(
                 self.service_type,
                 service_name,
@@ -238,7 +242,8 @@ class LocalDiscovery:
             )
             
             # Register the service
-            self.zeroconf.register_service(self.service_info)
+            if self.zeroconf:
+                self.zeroconf.register_service(self.service_info)
             
             self.logger.log_privacy_event(
                 "service_registered",
@@ -255,6 +260,10 @@ class LocalDiscovery:
     def _start_browsing(self):
         """Start browsing for other HAI-Net services"""
         try:
+            if not self.zeroconf:
+                self.logger.error("Cannot start browsing: Zeroconf not initialized", category="discovery", function="_start_browsing")
+                return
+            
             self.listener = ConstitutionalNetworkListener(self)
             self.browser = ServiceBrowser(
                 self.zeroconf,
@@ -323,9 +332,15 @@ class LocalDiscovery:
         if info.properties:
             for key, value in info.properties.items():
                 try:
-                    props[key.decode()] = value.decode()
+                    key_str = key.decode() if isinstance(key, bytes) else str(key)
+                    if value is not None:
+                        value_str = value.decode() if isinstance(value, bytes) else str(value)
+                        props[key_str] = value_str
+                    else:
+                        props[key_str] = ""
                 except:
-                    props[key.decode()] = value
+                    key_str = key.decode() if isinstance(key, bytes) else str(key)
+                    props[key_str] = str(value) if value is not None else ""
         
         # Parse capabilities
         capabilities = {}
@@ -343,11 +358,14 @@ class LocalDiscovery:
             except:
                 pass
         
+        # Safely get port with default
+        port = info.port if info.port is not None else 0
+        
         return NetworkNode(
             node_id=node_id,
             did=props.get('did') or None,
             address=address,
-            port=info.port,
+            port=port,
             role=props.get('role', 'unknown'),
             capabilities=capabilities,
             constitutional_version=props.get('constitutional_version', '1.0'),

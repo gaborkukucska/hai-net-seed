@@ -54,8 +54,9 @@ class NoiseProtocol:
     Constitutional principle: Privacy First with modern cryptography
     """
     
-    def __init__(self):
-        self.logger = get_logger("network.encryption")
+    def __init__(self, settings: HAINetSettings):
+        self.settings = settings
+        self.logger = get_logger("network.encryption", settings)
         
     def generate_keypair(self) -> EncryptionKeys:
         """Generate X25519 key pair for Noise protocol"""
@@ -70,6 +71,7 @@ class NoiseProtocol:
             )
             
         except Exception as e:
+            self.logger.error(f"Key generation failed: {e}", category="crypto", function="generate_keypair")
             raise ConstitutionalViolationError(f"Key generation failed: {e}")
     
     def perform_handshake(self, local_keys: EncryptionKeys, remote_public_key_bytes: bytes) -> bytes:
@@ -110,10 +112,12 @@ class NoiseProtocol:
                 "key_exchange",
                 user_consent=True
             )
+            self.logger.debug("Noise handshake completed successfully", category="crypto", function="perform_handshake")
             
             return shared_secret
             
         except Exception as e:
+            self.logger.error(f"Noise handshake failed: {e}", category="crypto", function="perform_handshake")
             raise ConstitutionalViolationError(f"Noise handshake failed: {e}")
     
     def encrypt_message(self, message: bytes, keys: EncryptionKeys, nonce: Optional[bytes] = None) -> bytes:
@@ -154,10 +158,12 @@ class NoiseProtocol:
                 "chacha20_poly1305",
                 user_consent=True
             )
+            self.logger.debug(f"Message encrypted: {len(message)} bytes", category="crypto", function="encrypt_message")
             
             return encrypted_message
             
         except Exception as e:
+            self.logger.error(f"Message encryption failed: {e}", category="crypto", function="encrypt_message")
             raise ConstitutionalViolationError(f"Message encryption failed: {e}")
     
     def decrypt_message(self, encrypted_message: bytes, keys: EncryptionKeys) -> bytes:
@@ -197,10 +203,12 @@ class NoiseProtocol:
                 "chacha20_poly1305",
                 user_consent=True
             )
+            self.logger.debug(f"Message decrypted: {len(plaintext)} bytes", category="crypto", function="decrypt_message")
             
             return plaintext
             
         except Exception as e:
+            self.logger.error(f"Message decryption failed: {e}", category="crypto", function="decrypt_message")
             raise ConstitutionalViolationError(f"Message decryption failed: {e}")
 
 
@@ -216,7 +224,7 @@ class NetworkEncryption:
         self.logger = get_logger("network.encryption", settings)
         
         # Noise Protocol implementation
-        self.noise = NoiseProtocol()
+        self.noise = NoiseProtocol(settings)
         
         # Secure channels management
         self.channels: Dict[str, SecureChannel] = {}
@@ -246,8 +254,10 @@ class NetworkEncryption:
                 "tls13_noise_protocol",
                 user_consent=True
             )
+            self.logger.debug("Encryption system initialized with TLS 1.3 and Noise Protocol", category="crypto", function="_initialize_encryption")
             
         except Exception as e:
+            self.logger.error(f"Encryption initialization failed: {e}", category="init", function="_initialize_encryption")
             raise ConstitutionalViolationError(f"Encryption initialization failed: {e}")
     
     def _setup_tls_context(self):
@@ -267,10 +277,10 @@ class NetworkEncryption:
             self.tls_context.check_hostname = False
             self.tls_context.verify_mode = ssl.CERT_NONE
             
-            self.logger.debug("TLS 1.3 context configured")
+            self.logger.debug("TLS 1.3 context configured", category="crypto", function="_setup_tls_context")
             
         except Exception as e:
-            self.logger.error(f"TLS setup failed: {e}")
+            self.logger.error(f"TLS setup failed: {e}", category="crypto", function="_setup_tls_context")
             # Continue without TLS if setup fails (Noise Protocol still provides encryption)
     
     def get_public_key_bytes(self) -> bytes:
@@ -327,10 +337,12 @@ class NetworkEncryption:
                 f"peer_{peer_id}",
                 user_consent=True
             )
+            self.logger.debug(f"Secure channel created with peer {peer_id}", category="crypto", function="create_secure_channel")
             
             return channel_id
             
         except Exception as e:
+            self.logger.error(f"Secure channel creation failed: {e}", category="crypto", function="create_secure_channel")
             raise ConstitutionalViolationError(f"Secure channel creation failed: {e}")
     
     def encrypt_for_channel(self, channel_id: str, message: bytes) -> bytes:
@@ -366,6 +378,7 @@ class NetworkEncryption:
             return encrypted_message
             
         except Exception as e:
+            self.logger.error(f"Channel encryption failed: {e}", category="crypto", function="encrypt_for_channel")
             raise ConstitutionalViolationError(f"Channel encryption failed: {e}")
     
     def decrypt_from_channel(self, channel_id: str, encrypted_message: bytes) -> bytes:
@@ -396,6 +409,7 @@ class NetworkEncryption:
             return plaintext
             
         except Exception as e:
+            self.logger.error(f"Channel decryption failed: {e}", category="crypto", function="decrypt_from_channel")
             raise ConstitutionalViolationError(f"Channel decryption failed: {e}")
     
     async def wrap_connection_with_tls(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
@@ -411,7 +425,7 @@ class NetworkEncryption:
         """
         try:
             if not self.tls_context:
-                self.logger.warning("TLS context not available, using plain connection")
+                self.logger.warning("TLS context not available, using plain connection", category="crypto", function="wrap_connection_with_tls")
                 return reader, writer
             
             # Get the underlying socket
@@ -419,7 +433,7 @@ class NetworkEncryption:
             sock = transport.get_extra_info('socket')
             
             if not sock:
-                self.logger.warning("Cannot get socket for TLS wrapping")
+                self.logger.warning("Cannot get socket for TLS wrapping", category="crypto", function="wrap_connection_with_tls")
                 return reader, writer
             
             # Wrap with TLS
@@ -440,11 +454,12 @@ class NetworkEncryption:
                 "tls13_transport_security",
                 user_consent=True
             )
+            self.logger.debug("TLS connection established successfully", category="crypto", function="wrap_connection_with_tls")
             
             return tls_reader, tls_writer
             
         except Exception as e:
-            self.logger.warning(f"TLS wrapping failed: {e}")
+            self.logger.warning(f"TLS wrapping failed: {e}", category="crypto", function="wrap_connection_with_tls")
             # Return original connection if TLS fails
             return reader, writer
     
@@ -470,9 +485,10 @@ class NetworkEncryption:
                     "key_material_cleared",
                     user_consent=True
                 )
+                self.logger.debug(f"Secure channel {channel_id} closed and key material cleared", category="crypto", function="close_channel")
                 
         except Exception as e:
-            self.logger.error(f"Error closing channel {channel_id}: {e}")
+            self.logger.error(f"Error closing channel {channel_id}: {e}", category="crypto", function="close_channel")
     
     def cleanup_expired_channels(self):
         """Clean up expired channels for security"""
@@ -498,9 +514,10 @@ class NetworkEncryption:
                     f"count_{len(expired_channels)}",
                     user_consent=True
                 )
+                self.logger.debug(f"Cleaned up {len(expired_channels)} expired channels", category="crypto", function="cleanup_expired_channels")
                 
         except Exception as e:
-            self.logger.error(f"Error cleaning up channels: {e}")
+            self.logger.error(f"Error cleaning up channels: {e}", category="crypto", function="cleanup_expired_channels")
     
     def _generate_channel_id(self, peer_id: str) -> str:
         """Generate unique channel ID"""

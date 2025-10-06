@@ -8,7 +8,7 @@ Implements dynamic master/slave role assignment without central authority
 import time
 import threading
 import hashlib
-from typing import Dict, List, Optional, Callable, Set
+from typing import Dict, List, Optional, Callable, Set, Any
 from dataclasses import dataclass
 from enum import Enum
 import random
@@ -56,7 +56,7 @@ class RoleChangeEvent:
     new_role: NodeRole
     reason: RoleChangeReason
     node_metrics: NodeMetrics
-    network_state: Dict[str, any]
+    network_state: Dict[str, Any]
 
 
 class NodeRoleManager:
@@ -109,7 +109,7 @@ class NodeRoleManager:
         """
         try:
             if self.running:
-                self.logger.warning("Node role manager already running")
+                self.logger.warning("Node role manager already running", category="network", function="start_role_management")
                 return True
             
             # Initialize discovery service
@@ -121,7 +121,7 @@ class NodeRoleManager:
             
             # Start discovery
             if not self.discovery.start_discovery():
-                self.logger.error("Failed to start network discovery")
+                self.logger.error("Failed to start network discovery", category="network", function="start_role_management")
                 return False
             
             # Start role management thread
@@ -136,12 +136,13 @@ class NodeRoleManager:
                 "role_management_started",
                 local_processing=True
             )
-            self.logger.info(f"Node role manager started for {self.node_id}")
+            self.logger.debug("Role management started successfully", category="network", function="start_role_management")
+            self.logger.info(f"Node role manager started for {self.node_id}", category="init", function="start_role_management")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start role management: {e}")
+            self.logger.error(f"Failed to start role management: {e}", category="init", function="start_role_management")
             return False
     
     def stop_role_management(self):
@@ -159,10 +160,11 @@ class NodeRoleManager:
                 "role_management_stopped", 
                 local_processing=True
             )
-            self.logger.info("Node role manager stopped")
+            self.logger.debug("Role management stopped successfully", category="network", function="stop_role_management")
+            self.logger.info("Node role manager stopped", category="network", function="stop_role_management")
             
         except Exception as e:
-            self.logger.error(f"Error stopping role management: {e}")
+            self.logger.error(f"Error stopping role management: {e}", category="network", function="stop_role_management")
     
     def get_current_role(self) -> NodeRole:
         """Get current node role"""
@@ -210,14 +212,15 @@ class NodeRoleManager:
                     f"user_role_override: {self.current_role.value} -> {new_role.value}",
                     user_control=True
                 )
+                self.logger.info(f"User forced role change: {self.current_role.value} -> {new_role.value}", category="network", function="force_role_change")
                 
                 return True
                 
         except Exception as e:
-            self.logger.error(f"Failed to force role change: {e}")
+            self.logger.error(f"Failed to force role change: {e}", category="network", function="force_role_change")
             return False
     
-    def get_network_status(self) -> Dict[str, any]:
+    def get_network_status(self) -> Dict[str, Any]:
         """Get current network status and role distribution"""
         with self._lock:
             discovered_nodes = self.discovery.get_discovered_nodes() if self.discovery else []
@@ -260,7 +263,7 @@ class NodeRoleManager:
         
         return NodeMetrics(
             uptime=time.time(),
-            cpu_cores=psutil.cpu_count(),
+            cpu_cores=psutil.cpu_count() or 1,
             available_memory_gb=psutil.virtual_memory().available / (1024**3),
             network_stability=1.0,  # Start optimistic
             constitutional_compliance_score=1.0,  # We're compliant by design
@@ -291,7 +294,7 @@ class NodeRoleManager:
                         self.node_metrics.network_stability = 1.0
                         
         except Exception as e:
-            self.logger.debug(f"Failed to update node metrics: {e}")
+            self.logger.debug(f"Failed to update node metrics: {e}", category="network", function="_update_node_metrics")
     
     def _role_management_loop(self):
         """Main role management loop"""
@@ -314,7 +317,7 @@ class NodeRoleManager:
                 time.sleep(10)  # Check every 10 seconds
                 
             except Exception as e:
-                self.logger.error(f"Role management loop error: {e}")
+                self.logger.error(f"Role management loop error: {e}", category="network", function="_role_management_loop")
                 time.sleep(5)  # Shorter sleep on error
     
     def _determine_optimal_role(self) -> NodeRole:
@@ -360,7 +363,7 @@ class NodeRoleManager:
             return NodeRole.SLAVE
             
         except Exception as e:
-            self.logger.error(f"Error determining optimal role: {e}")
+            self.logger.error(f"Error determining optimal role: {e}", category="network", function="_determine_optimal_role")
             return self.current_role
     
     def _should_become_master(self, discovered_nodes: List[NetworkNode]) -> bool:
@@ -463,6 +466,7 @@ class NodeRoleManager:
                     "requested_role": new_role.value,
                     "reason": "Violates constitutional principles"
                 })
+                self.logger.warning(f"Unconstitutional role change blocked: {self.current_role.value} -> {new_role.value}", category="network", function="_initiate_role_change")
                 return
             
             # Determine reason for role change
@@ -475,7 +479,7 @@ class NodeRoleManager:
             self._apply_role_change(new_role)
             
         except Exception as e:
-            self.logger.error(f"Failed to initiate role change: {e}")
+            self.logger.error(f"Failed to initiate role change: {e}", category="network", function="_initiate_role_change")
         finally:
             with self._lock:
                 self.election_in_progress = False
@@ -531,13 +535,14 @@ class NodeRoleManager:
             f"role_change: {self.current_role.value} -> {new_role.value}",
             local_processing=True
         )
+        self.logger.info(f"Recording role change: {self.current_role.value} -> {new_role.value}", category="network", function="_record_role_change")
         
         # Notify callbacks
         for callback in self.role_change_callbacks:
             try:
                 callback(event)
             except Exception as e:
-                self.logger.error(f"Role change callback error: {e}")
+                self.logger.error(f"Role change callback error: {e}", category="network", function="_record_role_change")
     
     def _apply_role_change(self, new_role: NodeRole):
         """Apply the role change"""
@@ -559,7 +564,7 @@ class NodeRoleManager:
             time.sleep(1)  # Brief pause
             self.discovery.start_discovery()
         
-        self.logger.info(f"Role changed: {previous_role.value} -> {new_role.value}")
+        self.logger.info(f"Role changed: {previous_role.value} -> {new_role.value}", category="network", function="_apply_role_change")
     
     def _on_node_discovered(self, node: NetworkNode):
         """Handle discovery of new node"""
@@ -582,10 +587,10 @@ class NodeRoleManager:
                     last_updated=time.time()
                 )
             
-            self.logger.info(f"Discovered {node.role} node: {node.node_id} (trust: {node.trust_level:.2f})")
+            self.logger.debug(f"Discovered {node.role} node: {node.node_id} (trust: {node.trust_level:.2f})", category="network", function="_on_node_discovered")
             
         except Exception as e:
-            self.logger.error(f"Error handling node discovery: {e}")
+            self.logger.error(f"Error handling node discovery: {e}", category="network", function="_on_node_discovered")
     
     def _on_node_removed(self, node_id: str):
         """Handle removal of node"""
@@ -595,10 +600,10 @@ class NodeRoleManager:
                 self.discovered_slaves.discard(node_id)
                 self.peer_metrics.pop(node_id, None)
             
-            self.logger.info(f"Node removed: {node_id}")
+            self.logger.debug(f"Node removed: {node_id}", category="network", function="_on_node_removed")
             
         except Exception as e:
-            self.logger.error(f"Error handling node removal: {e}")
+            self.logger.error(f"Error handling node removal: {e}", category="network", function="_on_node_removed")
     
     def _cleanup_stale_metrics(self):
         """Clean up stale peer metrics"""

@@ -5,7 +5,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Optional
-import logging
 from datetime import datetime
 
 # Import constitutional components
@@ -13,8 +12,7 @@ from core.config.settings import HAINetSettings, validate_constitutional_complia
 from core.identity.did import IdentityManager
 from core.network.node_manager import NodeRoleManager, NodeRole
 from core.logging.constitutional_audit import ConstitutionalAuditor
-
-logger = logging.getLogger(__name__)
+from core.logging.logger import get_logger
 
 # Create API router with constitutional compliance
 router = APIRouter(prefix="/api/v1", tags=["HAI-Net Constitutional API"])
@@ -24,6 +22,7 @@ settings = None
 identity_manager = None
 node_manager = None
 constitutional_auditor = None
+logger = None
 
 def get_settings() -> HAINetSettings:
     """Dependency to get settings with constitutional validation"""
@@ -85,7 +84,8 @@ async def health_check(settings: HAINetSettings = Depends(get_settings)) -> Dict
             }
         }
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        if logger:
+            logger.error(f"Health check failed: {e}", category="api", function="health_check")
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 @router.get("/constitution", summary="Get Constitutional Principles")
@@ -157,7 +157,8 @@ async def get_network_status(
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"Network status failed: {e}")
+        if logger:
+            logger.error(f"Network status failed: {e}", category="api", function="get_network_status")
         raise HTTPException(status_code=500, detail=f"Network status failed: {str(e)}")
 
 @router.get("/network/nodes", summary="Network Nodes")
@@ -181,7 +182,8 @@ async def get_network_nodes(
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"Network nodes failed: {e}")
+        if logger:
+            logger.error(f"Network nodes failed: {e}", category="api", function="get_network_nodes")
         raise HTTPException(status_code=500, detail=f"Network nodes failed: {str(e)}")
 
 @router.post("/network/role", summary="Update Node Role")
@@ -201,17 +203,18 @@ async def update_node_role(
         node_role = NodeRole[role.upper()]
         
         # Update role (respects human rights principle - user control)
-        node_manager.set_target_role(node_role)
+        success = node_manager.force_role_change(node_role, reason="user_override")
         
         return {
-            "role_updated": True,
+            "role_updated": success,
             "new_role": role,
             "human_rights_respected": True,
             "user_control_maintained": True,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"Role update failed: {e}")
+        if logger:
+            logger.error(f"Role update failed: {e}", category="api", function="update_node_role")
         raise HTTPException(status_code=500, detail=f"Role update failed: {str(e)}")
 
 # Constitutional audit endpoints
@@ -232,7 +235,8 @@ async def get_compliance_audit(
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"Compliance audit failed: {e}")
+        if logger:
+            logger.error(f"Compliance audit failed: {e}", category="api", function="get_compliance_audit")
         raise HTTPException(status_code=500, detail=f"Compliance audit failed: {str(e)}")
 
 # System information endpoints
@@ -292,14 +296,15 @@ def initialize_api_dependencies(app_settings: HAINetSettings):
     """
     Initialize API dependencies with constitutional compliance
     """
-    global settings, identity_manager, node_manager, constitutional_auditor
+    global settings, identity_manager, node_manager, constitutional_auditor, logger
     
     settings = app_settings
     identity_manager = IdentityManager()
     node_manager = NodeRoleManager(settings, f"api-server-{datetime.now().timestamp()}")
     constitutional_auditor = ConstitutionalAuditor(settings)
+    logger = get_logger("web.api", settings)
     
-    logger.info("🚀 API dependencies initialized with constitutional compliance")
+    logger.info("🚀 API dependencies initialized with constitutional compliance", category="init", function="initialize_api_dependencies")
 
 # Export the router
 __all__ = ['router', 'initialize_api_dependencies']

@@ -4,12 +4,12 @@
 
 import asyncio
 import json
-import logging
 from typing import Dict, List, Any, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from core.logging.logger import get_logger
+from core.config.settings import HAINetSettings
 
 class WebSocketManager:
     """
@@ -22,7 +22,7 @@ class WebSocketManager:
     - Community Focus: Collaborative real-time features
     """
     
-    def __init__(self):
+    def __init__(self, settings: Optional[HAINetSettings] = None):
         # Active WebSocket connections
         self.active_connections: List[WebSocket] = []
         self.connection_metadata: Dict[WebSocket, Dict[str, Any]] = {}
@@ -34,7 +34,11 @@ class WebSocketManager:
         self.decentralized = True
         self.community_focused = True
         
-        logger.info("🌐 WebSocket Manager initialized with constitutional compliance")
+        # Initialize logger
+        self.settings = settings or HAINetSettings()
+        self.logger = get_logger("web.websocket", self.settings)
+        
+        self.logger.info("🌐 WebSocket Manager initialized with constitutional compliance", category="init", function="__init__")
     
     async def connect(self, websocket: WebSocket, client_info: Optional[Dict[str, Any]] = None):
         """
@@ -54,7 +58,7 @@ class WebSocketManager:
                 'last_activity': datetime.utcnow().isoformat()
             }
             
-            logger.info(f"✅ WebSocket connection established (Total: {len(self.active_connections)})")
+            self.logger.info(f"✅ WebSocket connection established (Total: {len(self.active_connections)})", category="websocket", function="connect")
             
             # Send welcome message with constitutional principles
             await self.send_to_connection(websocket, {
@@ -70,7 +74,7 @@ class WebSocketManager:
             })
             
         except Exception as e:
-            logger.error(f"❌ WebSocket connection failed: {e}")
+            self.logger.error(f"❌ WebSocket connection failed: {e}", category="websocket", function="connect")
             raise
     
     def disconnect(self, websocket: WebSocket):
@@ -82,9 +86,9 @@ class WebSocketManager:
             
             if websocket in self.connection_metadata:
                 metadata = self.connection_metadata.pop(websocket)
-                logger.info(f"🔌 WebSocket disconnected (Messages sent: {metadata['messages_sent']})")
+                self.logger.debug(f"🔌 WebSocket disconnected (Messages sent: {metadata['messages_sent']})", category="websocket", function="disconnect")
             
-            logger.info(f"📊 Active connections: {len(self.active_connections)}")
+            self.logger.debug(f"📊 Active connections: {len(self.active_connections)}", category="websocket", function="disconnect")
     
     async def send_to_connection(self, websocket: WebSocket, data: Dict[str, Any]):
         """
@@ -107,10 +111,10 @@ class WebSocketManager:
                 self.connection_metadata[websocket]['last_activity'] = datetime.utcnow().isoformat()
                 
         except WebSocketDisconnect:
-            logger.info("🔌 WebSocket disconnected during send")
+            self.logger.debug("🔌 WebSocket disconnected during send", category="websocket", function="send_to_connection")
             self.disconnect(websocket)
         except Exception as e:
-            logger.error(f"❌ Failed to send WebSocket message: {e}")
+            self.logger.error(f"❌ Failed to send WebSocket message: {e}", category="websocket", function="send_to_connection")
             self.disconnect(websocket)
     
     async def broadcast(self, data: Dict[str, Any], exclude: Optional[WebSocket] = None):
@@ -118,7 +122,7 @@ class WebSocketManager:
         Broadcast message to all connected clients with constitutional compliance
         """
         if not self.active_connections:
-            logger.debug("📡 No active connections for broadcast")
+            self.logger.debug("📡 No active connections for broadcast", category="websocket", function="broadcast")
             return
         
         # Add constitutional compliance metadata
@@ -146,17 +150,17 @@ class WebSocketManager:
                     self.connection_metadata[connection]['last_activity'] = datetime.utcnow().isoformat()
                     
             except WebSocketDisconnect:
-                logger.info("🔌 WebSocket disconnected during broadcast")
+                self.logger.debug("🔌 WebSocket disconnected during broadcast", category="websocket", function="broadcast")
                 disconnected_connections.append(connection)
             except Exception as e:
-                logger.error(f"❌ Failed to send broadcast to connection: {e}")
+                self.logger.error(f"❌ Failed to send broadcast to connection: {e}", category="websocket", function="broadcast")
                 disconnected_connections.append(connection)
         
         # Clean up disconnected connections
         for connection in disconnected_connections:
             self.disconnect(connection)
         
-        logger.debug(f"📡 Broadcast sent to {len(self.active_connections) - len(disconnected_connections)} connections")
+        self.logger.debug(f"📡 Broadcast sent to {len(self.active_connections) - len(disconnected_connections)} connections", category="websocket", function="broadcast")
     
     async def send_constitutional_update(self, update_type: str, data: Dict[str, Any]):
         """
@@ -212,8 +216,15 @@ class WebSocketManager:
             }
         }
 
-# Global WebSocket manager instance
-websocket_manager = WebSocketManager()
+# Global WebSocket manager instance - will be initialized with settings when needed
+websocket_manager = None
+
+def get_websocket_manager(settings: Optional[HAINetSettings] = None) -> WebSocketManager:
+    """Get or create the global WebSocket manager instance"""
+    global websocket_manager
+    if websocket_manager is None:
+        websocket_manager = WebSocketManager(settings)
+    return websocket_manager
 
 # Export for use in other modules
-__all__ = ['WebSocketManager', 'websocket_manager']
+__all__ = ['WebSocketManager', 'websocket_manager', 'get_websocket_manager']

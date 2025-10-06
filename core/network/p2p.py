@@ -59,7 +59,7 @@ class PeerConnection:
     writer: Optional[asyncio.StreamWriter] = None
     connected: bool = False
     last_heartbeat: float = 0.0
-    message_queue: List[P2PMessage] = None
+    message_queue: Optional[List[P2PMessage]] = None
     encryption_key: Optional[bytes] = None
     
     def __post_init__(self):
@@ -93,6 +93,10 @@ class P2PManager:
         self.received_messages: Dict[str, P2PMessage] = {}
         self.message_callbacks: List[Callable[[P2PMessage], None]] = []
         
+        # Type for async message handlers
+        from typing import Coroutine
+        self._handler_type = Callable[[P2PMessage, str], Coroutine[Any, Any, None]]
+        
         # Constitutional compliance
         self.constitutional_version = "1.0"
         self.max_message_size = 1024 * 1024  # 1MB limit for privacy
@@ -107,9 +111,10 @@ class P2PManager:
     
     def _setup_default_handlers(self):
         """Setup default constitutional message handlers"""
-        self.message_handlers[MessageType.HANDSHAKE] = self._handle_handshake
-        self.message_handlers[MessageType.HEARTBEAT] = self._handle_heartbeat
-        self.message_handlers[MessageType.CONSTITUTIONAL_ALERT] = self._handle_constitutional_alert
+        # Note: These are async handlers, will be awaited when called
+        self.message_handlers[MessageType.HANDSHAKE] = self._handle_handshake  # type: ignore
+        self.message_handlers[MessageType.HEARTBEAT] = self._handle_heartbeat  # type: ignore
+        self.message_handlers[MessageType.CONSTITUTIONAL_ALERT] = self._handle_constitutional_alert  # type: ignore
     
     async def start_p2p_service(self) -> bool:
         """
@@ -395,6 +400,11 @@ class P2PManager:
                     timeout=30.0
                 )
                 
+                if handshake_message is None:
+                    self.logger.warning(f"No handshake received from {peer_ip}", category="network", function="_handle_incoming_connection")
+                    await self._close_connection(temp_connection)
+                    return
+                
                 if handshake_message.message_type != MessageType.HANDSHAKE:
                     self.logger.warning(f"Expected handshake from {peer_ip}, got {handshake_message.message_type}", category="network", function="_handle_incoming_connection")
                     await self._close_connection(temp_connection)
@@ -460,7 +470,7 @@ class P2PManager:
                         timeout=60.0
                     )
                     
-                    if message:
+                    if message is not None:
                         await self._process_received_message(message, connection.node.node_id)
                     
                 except asyncio.TimeoutError:
@@ -482,6 +492,9 @@ class P2PManager:
     async def _send_message_to_connection(self, connection: PeerConnection, message: P2PMessage):
         """Send message to a specific connection"""
         try:
+            if connection.writer is None:
+                raise RuntimeError("Connection writer is None")
+            
             # Serialize message
             message_data = self._serialize_message(message)
             
@@ -502,6 +515,9 @@ class P2PManager:
     async def _receive_message_from_connection(self, connection: PeerConnection) -> Optional[P2PMessage]:
         """Receive message from a specific connection"""
         try:
+            if connection.reader is None:
+                raise RuntimeError("Connection reader is None")
+            
             # Read message length
             length_data = await connection.reader.readexactly(4)
             message_length = struct.unpack('!I', length_data)[0]
@@ -532,7 +548,7 @@ class P2PManager:
             if not self._validate_received_message(message):
                 self.logger.log_violation("received_message_violation", {
                     "sender": sender_id,
-                    "type": message.message_type.value,
+                    "type": message.message_type.value if message.message_type else "unknown",
                     "reason": "Message violates constitutional principles"
                 })
                 return
@@ -543,7 +559,11 @@ class P2PManager:
             # Call appropriate handler
             if message.message_type in self.message_handlers:
                 handler = self.message_handlers[message.message_type]
-                await handler(message, sender_id)
+                # Handler is async, await it
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(message, sender_id)
+                else:
+                    handler(message, sender_id)
             
             # Notify callbacks
             for callback in self.message_callbacks:

@@ -51,7 +51,7 @@ class ConstitutionalLLMListener(ServiceListener):
 
     def __init__(self, discovery_manager: 'LLMDiscovery'):
         self.discovery = discovery_manager
-        self.logger = get_logger("network.llm_discovery")
+        self.logger = get_logger("network.llm_discovery", discovery_manager.settings)
 
     async def async_add_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
         """Handle new LLM service discovery asynchronously."""
@@ -65,13 +65,15 @@ class ConstitutionalLLMListener(ServiceListener):
                         f"llm_provider_discovered: {llm_node.node_id}",
                         local_processing=True
                     )
+                    self.logger.debug(f"LLM provider discovered: {llm_node.node_id}", category="discovery", function="async_add_service")
                 else:
                     self.logger.log_violation("llm_constitutional_non_compliance", {
                         "node_id": llm_node.node_id,
                         "reason": "Failed constitutional validation"
                     })
+                    self.logger.warning(f"LLM node {llm_node.node_id} failed constitutional validation", category="discovery", function="async_add_service")
             except Exception as e:
-                self.logger.error(f"Failed to process discovered LLM service: {e}", exc_info=True)
+                self.logger.error(f"Failed to process discovered LLM service: {e}", category="discovery", function="async_add_service", exc_info=True)
 
     async def async_remove_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
         """Handle LLM service removal asynchronously."""
@@ -81,6 +83,7 @@ class ConstitutionalLLMListener(ServiceListener):
             f"llm_provider_removed: {node_id}",
             local_processing=True
         )
+        self.logger.debug(f"LLM provider removed: {node_id}", category="discovery", function="async_remove_service")
 
     async def async_update_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
         """Handle LLM service updates asynchronously."""
@@ -91,7 +94,7 @@ class ConstitutionalLLMListener(ServiceListener):
                 llm_node.last_seen = time.time()
                 await self.discovery._update_discovered_llm_node(llm_node)
             except Exception as e:
-                self.logger.error(f"Failed to update LLM service: {e}", exc_info=True)
+                self.logger.error(f"Failed to update LLM service: {e}", category="discovery", function="async_update_service", exc_info=True)
 
     # Synchronous shims for compatibility
     def add_service(self, zeroconf: AsyncZeroconf, service_type: str, name: str) -> None:
@@ -147,7 +150,7 @@ class LLMDiscovery:
         """Start comprehensive AI service discovery using modern asyncio."""
         try:
             if self.running:
-                self.logger.warning("AI discovery already running")
+                self.logger.warning("AI discovery already running", category="discovery", function="start_discovery")
                 return True
 
             self.aiozc = AsyncZeroconf()
@@ -164,11 +167,11 @@ class LLMDiscovery:
             asyncio.create_task(self._start_network_scanning())
             
             self.logger.log_decentralization_event("ai_discovery_started", local_processing=True)
-            self.logger.info("🧠 HAI-Net comprehensive AI discovery started.")
+            self.logger.info("🧠 HAI-Net comprehensive AI discovery started.", category="init", function="start_discovery")
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start AI discovery: {e}", exc_info=True)
+            self.logger.error(f"Failed to start AI discovery: {e}", category="init", function="start_discovery", exc_info=True)
             return False
     
     async def stop_discovery(self):
@@ -195,14 +198,14 @@ class LLMDiscovery:
                 self.aiozc = None
             
             self.logger.log_decentralization_event("llm_discovery_stopped", local_processing=True)
-            self.logger.info("HAI-Net LLM discovery stopped")
+            self.logger.info("HAI-Net LLM discovery stopped", category="discovery", function="stop_discovery")
             
         except Exception as e:
-            self.logger.error(f"Error stopping LLM discovery: {e}", exc_info=True)
+            self.logger.error(f"Error stopping LLM discovery: {e}", category="discovery", function="stop_discovery", exc_info=True)
 
     async def _start_network_scanning(self):
         """Asynchronously scans the local network for potential AI services."""
-        self.logger.info("Starting network scan for non-mDNS AI services...")
+        self.logger.info("Starting network scan for non-mDNS AI services...", category="discovery", function="_start_network_scanning")
         network_ranges = self._get_comprehensive_network_ranges()
         tasks = []
         for network_range in network_ranges:
@@ -214,7 +217,7 @@ class LLMDiscovery:
                 tasks.append(self._scan_ai_service(ip, 11434, "Ollama"))
 
         await asyncio.gather(*tasks, return_exceptions=True)
-        self.logger.info("Network scan for AI services complete.")
+        self.logger.info("Network scan for AI services complete.", category="discovery", function="_start_network_scanning")
 
     def _get_comprehensive_network_ranges(self) -> List[str]:
         """Gets a list of local network ranges to scan using netifaces."""
@@ -229,12 +232,12 @@ class LLMDiscovery:
                             base_ip = ".".join(ip.split('.')[:-1])
                             ranges.add(f"{base_ip}.0/24")
         except Exception as e:
-            self.logger.error(f"Could not determine network ranges via netifaces: {e}")
+            self.logger.error(f"Could not determine network ranges via netifaces: {e}", category="discovery", function="_get_comprehensive_network_ranges")
 
         if not ranges:
             ranges.add("192.168.1.0/24") # Default fallback for common home networks
 
-        self.logger.debug(f"Network ranges to scan: {list(ranges)}")
+        self.logger.debug(f"Network ranges to scan: {list(ranges)}", category="discovery", function="_get_comprehensive_network_ranges")
         return list(ranges)
 
     async def _scan_ai_service(self, ip: str, port: int, service_name: str):
@@ -247,13 +250,13 @@ class LLMDiscovery:
             writer.close()
             await writer.wait_closed()
 
-            self.logger.info(f"Potential '{service_name}' service found at {ip}:{port}. Probing API.")
+            self.logger.debug(f"Potential '{service_name}' service found at {ip}:{port}. Probing API.", category="discovery", function="_scan_ai_service")
             if service_name == "Ollama":
                 await self._probe_ollama_endpoint(ip, port)
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
             pass # This is expected for most IPs
         except Exception as e:
-            self.logger.debug(f"Error scanning {ip}:{port}: {e}")
+            self.logger.debug(f"Error scanning {ip}:{port}: {e}", category="discovery", function="_scan_ai_service")
 
     async def _probe_ollama_endpoint(self, ip: str, port: int):
         """Probes a potential Ollama endpoint and registers it if valid."""
@@ -261,7 +264,7 @@ class LLMDiscovery:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
                 async with session.get(f"http://{ip}:{port}/api/tags") as response:
                     if response.status == 200:
-                        self.logger.info(f"Confirmed Ollama service at {ip}:{port}. Registering as a node.")
+                        self.logger.info(f"Confirmed Ollama service at {ip}:{port}. Registering as a node.", category="discovery", function="_probe_ollama_endpoint")
                         # Manually construct an LLMNode for the discovered service
                         data = await response.json()
                         models = [model["name"] for model in data.get("models", [])]
@@ -292,14 +295,14 @@ class LLMDiscovery:
                         await self._add_discovered_llm_node(llm_node)
 
         except Exception as e:
-            self.logger.debug(f"Failed to probe confirmed Ollama endpoint at {ip}:{port}: {e}")
+            self.logger.debug(f"Failed to probe confirmed Ollama endpoint at {ip}:{port}: {e}", category="discovery", function="_probe_ollama_endpoint")
     
     async def _register_local_llm_service(self) -> bool:
         """Register local LLM service if available."""
         try:
             ollama_info = await self._check_local_ollama()
             if not ollama_info:
-                self.logger.debug("No local Ollama service detected")
+                self.logger.debug("No local Ollama service detected", category="discovery", function="_register_local_llm_service")
                 return False
             
             models_list = ollama_info["models"][:]
@@ -328,12 +331,13 @@ class LLMDiscovery:
             if self.aiozc is not None:
                 await self.aiozc.async_register_service(self.service_info)
             self.logger.log_privacy_event("local_llm_service_registered", "ollama_advertisement", user_consent=True)
+            self.logger.debug("Local LLM service registered successfully", category="discovery", function="_register_local_llm_service")
             return True
             
         except Exception as e:
             import traceback
-            self.logger.error(f"Failed to register local LLM service. Error: {repr(e)}, Type: {type(e).__name__}")
-            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+            self.logger.error(f"Failed to register local LLM service. Error: {repr(e)}, Type: {type(e).__name__}", category="discovery", function="_register_local_llm_service")
+            self.logger.error(f"Full traceback: {traceback.format_exc()}", category="discovery", function="_register_local_llm_service")
             return False
     
     async def _check_local_ollama(self) -> Optional[Dict[str, Any]]:
@@ -348,7 +352,7 @@ class LLMDiscovery:
                         parsed_url = URL(ollama_url)
                         return {"models": models, "port": parsed_url.port or 11434}
         except Exception as e:
-            self.logger.debug(f"Local Ollama check failed: {e}")
+            self.logger.debug(f"Local Ollama check failed: {e}", category="discovery", function="_check_local_ollama")
         return None
     
     def _parse_llm_service_info(self, name: str, info: AsyncServiceInfo) -> LLMNode:
@@ -392,7 +396,7 @@ class LLMDiscovery:
         async with self._lock:
             self.discovered_llm_nodes[llm_node.node_id] = llm_node
             await self._perform_health_check(llm_node)
-            self.logger.info(f"Discovered LLM provider: {llm_node.node_id}")
+            self.logger.info(f"Discovered LLM provider: {llm_node.node_id}", category="discovery", function="_add_discovered_llm_node")
             for callback in self.discovery_callbacks:
                 callback(llm_node)
     
@@ -407,7 +411,7 @@ class LLMDiscovery:
         async with self._lock:
             if node_id in self.discovered_llm_nodes:
                 self.discovered_llm_nodes.pop(node_id, None)
-                self.logger.info(f"Removed LLM provider: {node_id}")
+                self.logger.debug(f"Removed LLM provider: {node_id}", category="discovery", function="_remove_discovered_llm_node")
                 for callback in self.removal_callbacks:
                     callback(node_id)
     

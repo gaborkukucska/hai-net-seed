@@ -321,7 +321,7 @@ class WebServer:
                     return templates.TemplateResponse("index.html", {"request": request})
             
         except Exception as e:
-            self.logger.warning(f"Static files setup failed: {e}")
+            self.logger.warning(f"Static files setup failed: {e}", category="web", function="_setup_static_files")
 
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: str):
         """Handle WebSocket connection with constitutional compliance"""
@@ -333,6 +333,7 @@ class WebServer:
             f"client_{client_id}",
             user_consent=True
         )
+        self.logger.debug(f"WebSocket connected: client_{client_id}", category="websocket", function="_handle_websocket_connection")
         
         try:
             while True:
@@ -349,8 +350,9 @@ class WebServer:
                 f"client_{client_id}",
                 user_consent=True
             )
+            self.logger.debug(f"WebSocket disconnected: client_{client_id}", category="websocket", function="_handle_websocket_connection")
         except Exception as e:
-            self.logger.error(f"WebSocket error: {e}")
+            self.logger.error(f"WebSocket error: {e}", category="websocket", function="_handle_websocket_connection")
         finally:
             if client_id in self.websocket_connections:
                 del self.websocket_connections[client_id]
@@ -368,7 +370,7 @@ class WebServer:
             user_did = message.get("user_did")
             
             if self.agent_manager and user_message:
-                self.logger.info(f"Routing chat message from client {client_id} to agent system")
+                self.logger.debug(f"Routing chat message from client {client_id} to agent system", category="websocket", function="_handle_websocket_message")
                 
                 # Send message to agent manager (Admin AI)
                 await self.agent_manager.handle_user_message(user_message, user_did)
@@ -400,7 +402,7 @@ class WebServer:
                 websocket = self.websocket_connections[client_id]
                 await websocket.send_text(json.dumps(message))
             except Exception as e:
-                self.logger.error(f"WebSocket send error: {e}")
+                self.logger.error(f"WebSocket send error: {e}", category="websocket", function="_send_websocket_message")
                 # Remove broken connection
                 if client_id in self.websocket_connections:
                     del self.websocket_connections[client_id]
@@ -437,6 +439,7 @@ class WebServer:
             "web_server_dependencies_injected",
             local_processing=True
         )
+        self.logger.debug("Web server dependencies injected", category="web", function="inject_dependencies")
     
     async def start(self, host: str = "127.0.0.1", port: int = 8000):
         """Start the web server with integrated AI discovery"""
@@ -448,6 +451,7 @@ class WebServer:
                 "web_server_starting",
                 user_control=True
             )
+            self.logger.info("Web server starting", category="web", function="start")
             
             # Start server
             config = uvicorn.Config(
@@ -462,7 +466,7 @@ class WebServer:
             await server.serve()
             
         except Exception as e:
-            self.logger.error(f"Web server startup failed: {e}")
+            self.logger.error(f"Web server startup failed: {e}", category="web", function="start")
             await self._graceful_shutdown()
             raise
     
@@ -475,14 +479,14 @@ class WebServer:
             
             # Start discovery
             if await self.llm_discovery.start_discovery():
-                self.logger.info("🧠 AI discovery service started successfully")
+                self.logger.info("🧠 AI discovery service started successfully", category="init", function="_start_ai_discovery")
                 # Log progress after brief delay
                 asyncio.create_task(self._log_discovery_progress())
             else:
-                self.logger.error("Failed to start AI discovery service")
+                self.logger.error("Failed to start AI discovery service", category="init", function="_start_ai_discovery")
                 
         except Exception as e:
-            self.logger.error(f"Error starting AI discovery: {e}")
+            self.logger.error(f"Error starting AI discovery: {e}", category="init", function="_start_ai_discovery")
     
     async def _log_discovery_progress(self):
         """Log AI discovery progress"""
@@ -492,31 +496,31 @@ class WebServer:
             if self.llm_discovery:
                 nodes = self.llm_discovery.get_discovered_llm_nodes(trusted_only=False, healthy_only=False)
                 if nodes:
-                    self.logger.info(f"🎯 AI Discovery: Found {len(nodes)} services")
+                    self.logger.info(f"🎯 AI Discovery: Found {len(nodes)} services", category="discovery", function="_log_discovery_progress")
                     for node in nodes:
                         models_info = f"{len(node.available_models)} models" if node.available_models else "models unknown"
-                        self.logger.info(f"   🤖 {node.address}:{node.port} ({models_info})")
+                        self.logger.debug(f"   🤖 {node.address}:{node.port} ({models_info})", category="discovery", function="_log_discovery_progress")
                 else:
-                    self.logger.info("🔍 AI Discovery: No services found")
+                    self.logger.info("🔍 AI Discovery: No services found", category="discovery", function="_log_discovery_progress")
                     
         except Exception as e:
-            self.logger.debug(f"Error logging discovery: {e}")
+            self.logger.debug(f"Error logging discovery: {e}", category="discovery", function="_log_discovery_progress")
     
     async def _graceful_shutdown(self):
         """Gracefully shutdown all services"""
         try:
-            self.logger.info("🔄 Starting graceful shutdown...")
+            self.logger.info("🔄 Starting graceful shutdown...", category="web", function="_graceful_shutdown")
             
             # Stop AI discovery
             if self.llm_discovery:
-                self.logger.info("🧠 Stopping AI discovery...")
+                self.logger.info("🧠 Stopping AI discovery...", category="web", function="_graceful_shutdown")
                 await self.llm_discovery.stop_discovery()
-                self.logger.info("✅ AI discovery stopped")
+                self.logger.info("✅ AI discovery stopped", category="web", function="_graceful_shutdown")
             
-            self.logger.info("✅ Graceful shutdown completed")
+            self.logger.info("✅ Graceful shutdown completed", category="web", function="_graceful_shutdown")
             
         except Exception as e:
-            self.logger.error(f"Error during shutdown: {e}")
+            self.logger.error(f"Error during shutdown: {e}", category="web", function="_graceful_shutdown")
     
     async def stop(self):
         """Stop the web server gracefully"""
@@ -536,6 +540,7 @@ class WebServer:
             "web_server_stopped",
             user_control=True
         )
+        self.logger.info("Web server stopped", category="web", function="stop")
 
 def create_web_server(settings: HAINetSettings) -> WebServer:
     """
