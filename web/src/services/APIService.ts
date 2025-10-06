@@ -73,7 +73,7 @@ export class APIService {
   constructor(baseURL: string = '/api') {
     this.api = axios.create({
       baseURL,
-      timeout: 10000,
+      timeout: 150000, // 150 seconds - allows time for LLM model loading
       headers: {
         'Content-Type': 'application/json',
       },

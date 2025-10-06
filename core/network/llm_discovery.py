@@ -418,6 +418,7 @@ class LLMDiscovery:
                 async with session.get(f"{llm_node.api_endpoint}/api/tags") as response:
                     if response.status == 200:
                         llm_node.health_status = 'healthy'
+                        llm_node.last_seen = time.time()  # Update last_seen on successful health check
                     else:
                         llm_node.health_status = 'degraded'
         except Exception:
@@ -439,8 +440,17 @@ class LLMDiscovery:
             for node_id in stale_node_ids:
                 await self._remove_discovered_llm_node(node_id)
     
-    def get_discovered_llm_nodes(self, **kwargs) -> List[LLMNode]:
-        return list(self.discovered_llm_nodes.values())
+    def get_discovered_llm_nodes(self, trusted_only: bool = False, healthy_only: bool = True) -> List[LLMNode]:
+        """Get discovered LLM nodes with filtering options"""
+        nodes = list(self.discovered_llm_nodes.values())
+        
+        if trusted_only:
+            nodes = [node for node in nodes if node.trust_level >= self.trust_threshold]
+        
+        if healthy_only:
+            nodes = [node for node in nodes if node.health_status == 'healthy']
+        
+        return nodes
 
 def create_llm_discovery_service(settings: HAINetSettings, node_id: str) -> LLMDiscovery:
     return LLMDiscovery(settings, node_id)

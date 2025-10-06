@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box, AppBar, Toolbar, Typography, BottomNavigation, BottomNavigationAction, Alert, Snackbar } from '@mui/material';
 import { AccountTree, Timeline, Terminal, Settings, Security, Chat } from '@mui/icons-material';
@@ -95,9 +95,21 @@ const constitutionalTheme = createTheme({
   },
 });
 
-const App: React.FC = () => {
-  // Navigation state
-  const [currentPage, setCurrentPage] = useState(0);
+const AppContent: React.FC<{
+  webSocketService: WebSocketService;
+  apiService: APIService;
+}> = ({ webSocketService, apiService }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Navigation state based on current route
+  const getCurrentPageIndex = () => {
+    const routes = ['/chat', '/network', '/feed', '/logs', '/settings'];
+    const index = routes.indexOf(location.pathname);
+    return index >= 0 ? index : 0;
+  };
+  
+  const [currentPage, setCurrentPage] = useState(getCurrentPageIndex());
   
   // System state
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
@@ -109,9 +121,10 @@ const App: React.FC = () => {
   const [alertMessage, setAlertMessage] = useState('');
   const [alertSeverity, setAlertSeverity] = useState<'success' | 'warning' | 'error' | 'info'>('info');
 
-  // Services
-  const [webSocketService] = useState(() => new WebSocketService());
-  const [apiService] = useState(() => new APIService());
+  // Update current page when route changes
+  useEffect(() => {
+    setCurrentPage(getCurrentPageIndex());
+  }, [location.pathname]);
 
   // Page configuration with constitutional principles
   const pages = [
@@ -255,8 +268,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={constitutionalTheme}>
       <CssBaseline />
-      <Router>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
           {/* Constitutional Header */}
           <AppBar position="static" elevation={0}>
             <Toolbar>
@@ -317,9 +329,9 @@ const App: React.FC = () => {
             value={currentPage}
             onChange={(event, newValue) => {
               setCurrentPage(newValue);
-              // Navigate to corresponding route
+              // Navigate to corresponding route using React Router
               const routes = ['/chat', '/network', '/feed', '/logs', '/settings'];
-              window.history.pushState(null, '', routes[newValue]);
+              navigate(routes[newValue]);
             }}
             showLabels
           >
@@ -354,8 +366,19 @@ const App: React.FC = () => {
             </Alert>
           </Snackbar>
         </Box>
-      </Router>
     </ThemeProvider>
+  );
+};
+
+const App: React.FC = () => {
+  // Services
+  const [webSocketService] = useState(() => new WebSocketService());
+  const [apiService] = useState(() => new APIService());
+
+  return (
+    <Router>
+      <AppContent webSocketService={webSocketService} apiService={apiService} />
+    </Router>
   );
 };
 

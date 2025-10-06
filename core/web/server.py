@@ -362,6 +362,23 @@ class WebServer:
         if message_type == "ping":
             await self._send_websocket_message(client_id, {"type": "pong", "timestamp": time.time()})
         
+        elif message_type == "chat_message":
+            # User sent a chat message - route to agent system
+            user_message = message.get("message", "")
+            user_did = message.get("user_did")
+            
+            if self.agent_manager and user_message:
+                self.logger.info(f"Routing chat message from client {client_id} to agent system")
+                
+                # Send message to agent manager (Admin AI)
+                await self.agent_manager.handle_user_message(user_message, user_did)
+                
+                # Notify client that message was received
+                await self._send_websocket_message(client_id, {
+                    "type": "message_received",
+                    "timestamp": time.time()
+                })
+        
         elif message_type == "subscribe_agent_updates":
             # Subscribe to agent status updates
             await self._send_websocket_message(client_id, {
@@ -556,10 +573,20 @@ if __name__ == "__main__":
         print("🔧 Initializing HAI-Net core components...")
         guardian = ConstitutionalGuardian(settings)
 
+        # 2.5. Start LLM discovery first
+        print("🔍 Starting LLM discovery on network...")
+        from core.network.llm_discovery import create_llm_discovery_service
+        llm_discovery = create_llm_discovery_service(settings, f"hai-net-{int(time.time())}")
+        await llm_discovery.start_discovery()
+        
+        # Wait for discovery to find services (network scan can take a few seconds)
+        print("⏳ Waiting for network LLM discovery to complete...")
+        await asyncio.sleep(6)
+        
         # LLM Manager is needed by Agent Manager
-        print("Initializing LLM Manager...")
+        print("Initializing LLM Manager with discovered services...")
         llm_manager = LLMManager(settings)
-        await llm_manager.initialize()
+        await llm_manager.initialize(llm_discovery=llm_discovery)
 
         # Agent Manager is needed by Tool Executor
         print("Initializing Agent Manager...")
@@ -581,8 +608,21 @@ if __name__ == "__main__":
         print("🔗 Wiring up component dependencies...")
         agent_manager.set_handlers(cycle_handler, workflow_manager)
 
-        # 4. Create and configure the web server
+        # 4. Create Admin AI for the user
+        print("👤 Creating Admin AI for user...")
+        from core.ai.agents import AgentRole
+        admin_agent_id = await agent_manager.create_agent(
+            AgentRole.ADMIN,
+            user_did="did:hai:local_user"
+        )
+        if admin_agent_id:
+            print(f"✅ Admin AI created: {admin_agent_id}")
+        else:
+            print("⚠️ Failed to create Admin AI")
+
+        # 5. Create and configure the web server
         web_server = create_web_server(settings)
+        web_server.llm_discovery = llm_discovery  # Store discovery for later use
         web_server.inject_dependencies(
             llm_manager=llm_manager,
             agent_manager=agent_manager,
