@@ -1,44 +1,39 @@
-# HAI-Net Core Dependencies - Minimal Installation
-# For older systems or when external AI services are available
-# Python 3.9+ required
+# HAI-Net Seed Framework - Minimal Requirements
+# This is the absolute minimum to run HAI-Net core functionality
+# For full features, use requirements.txt
 
-# Web Framework & APIs
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-websockets==12.0
-python-multipart==0.0.6
+# Core Web Framework
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+Jinja2>=3.1.0
+websockets>=12.0
+python-multipart>=0.0.6
 
-# Cryptography & Security
-cryptography>=41.0.0
-argon2-cffi>=23.1.0
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-
-# Networking & P2P
-zeroconf>=0.131.0
-netifaces>=0.11.0
-
-# Database & Storage
-sqlalchemy>=2.0.0
-
-# System & Utilities
-psutil>=5.9.0
+# Configuration & Settings
 pydantic>=2.5.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
+pyyaml>=6.0.0
+
+# Security & Encryption
+argon2-cffi>=23.1.0
+cryptography>=41.0.0
+
+# Networking
+aiohttp>=3.8.0
+yarl>=1.9.0
+zeroconf>=0.131.0
+netifaces>=0.11.0
+
+# System & Utilities
+psutil>=5.9.0
+tblib>=2.0.0
 click>=8.1.0
 rich>=13.7.0
-pyyaml>=6.0.0
-requests>=2.31.0
-aiohttp>=3.8.0
-numpy>=1.21.0
 
-# Development & Testing
+# Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 
-# Note: AI packages excluded for compatibility
-# Connect to external AI services instead:
-# - External Ollama server (recommended)
-# - OpenAI API
-# - Other AI service providers
+# Essential for constitutional compliance
+numpy>=1.21.0

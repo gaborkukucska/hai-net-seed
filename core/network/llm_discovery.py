@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo
 import aiohttp
+from yarl import URL
 from pathlib import Path
 import netifaces
 
@@ -342,7 +343,7 @@ class LLMDiscovery:
                     if response.status == 200:
                         data = await response.json()
                         models = [model["name"] for model in data.get("models", [])]
-                        parsed_url = aiohttp.helpers.parse_url(ollama_url)
+                        parsed_url = URL(ollama_url)
                         return {"models": models, "port": parsed_url.port or 11434}
         except Exception as e:
             self.logger.debug(f"Local Ollama check failed: {e}")

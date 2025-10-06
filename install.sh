@@ -312,13 +312,78 @@ install_web_dependencies() {
         cd web
         
         if [ -f "package.json" ]; then
+            # Ensure public directory exists with required files
+            log_info "Setting up React build environment..."
+            mkdir -p public
+            
+            # Create index.html if it doesn't exist
+            if [ ! -f "public/index.html" ]; then
+                log_info "Creating public/index.html..."
+                cat > public/index.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1976d2" />
+    <meta
+      name="description"
+      content="HAI-Net - Constitutional AI Network for Privacy-First Decentralized Collaboration"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>HAI-Net - Constitutional AI Network</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
+HTMLEOF
+            fi
+            
+            # Create manifest.json if it doesn't exist
+            if [ ! -f "public/manifest.json" ]; then
+                log_info "Creating public/manifest.json..."
+                cat > public/manifest.json << 'JSONEOF'
+{
+  "short_name": "HAI-Net",
+  "name": "HAI-Net Constitutional AI Network",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1976d2",
+  "background_color": "#ffffff"
+}
+JSONEOF
+            fi
+            
             log_info "Installing Node.js dependencies..."
             npm install
             
-            log_info "Building web interface..."
+            log_info "Building React web interface..."
             npm run build
             
-            log_success "Web interface built successfully"
+            if [ $? -eq 0 ]; then
+                # Deploy built files to the correct locations
+                log_info "Deploying React build files..."
+                mkdir -p static templates
+                rm -rf static/* templates/*
+                cp -r build/static/* static/
+                cp build/index.html templates/
+                
+                log_success "Web interface built and deployed successfully"
+            else
+                log_error "React build failed"
+                return 1
+            fi
         else
             log_warning "package.json not found in web directory"
         fi
