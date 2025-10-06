@@ -12,6 +12,7 @@ import socket
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf, AsyncServiceInfo
+from zeroconf import ServiceListener
 import aiohttp
 from yarl import URL
 from pathlib import Path
@@ -42,7 +43,7 @@ class LLMNode:
     capabilities: Dict[str, Any]
 
 
-class ConstitutionalLLMListener:
+class ConstitutionalLLMListener(ServiceListener):
     """
     Async service listener for LLM providers with constitutional compliance.
     This class must implement both async and sync methods for compatibility.
@@ -324,7 +325,8 @@ class LLMDiscovery:
                 server=f"{self.node_id}.local."
             )
             
-            await self.aiozc.async_register_service(self.service_info)
+            if self.aiozc is not None:
+                await self.aiozc.async_register_service(self.service_info)
             self.logger.log_privacy_event("local_llm_service_registered", "ollama_advertisement", user_consent=True)
             return True
             
@@ -337,7 +339,7 @@ class LLMDiscovery:
     async def _check_local_ollama(self) -> Optional[Dict[str, Any]]:
         """Check if local Ollama service is running."""
         try:
-            ollama_url = self.settings.ollama_base_url if hasattr(self.settings, 'ollama_base_url') else "http://localhost:11434"
+            ollama_url = getattr(self.settings, 'ollama_base_url', "http://localhost:11434")
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2)) as session:
                 async with session.get(f"{ollama_url}/api/tags") as response:
                     if response.status == 200:
@@ -352,17 +354,25 @@ class LLMDiscovery:
     def _parse_llm_service_info(self, name: str, info: AsyncServiceInfo) -> LLMNode:
         """Parse mDNS service info into LLMNode"""
         node_id = name.split('.')[0]
-        props = {key.decode('utf-8'): value.decode('utf-8') for key, value in info.properties.items()}
-        models = json.loads(props.get('models', '[]'))
+        props = {
+            key.decode('utf-8') if isinstance(key, bytes) else str(key): 
+            value.decode('utf-8') if isinstance(value, bytes) else str(value) 
+            for key, value in info.properties.items()
+        }
+        models_str = props.get('models', '[]')
+        models = json.loads(models_str if isinstance(models_str, str) else '[]')
         address = socket.inet_ntoa(info.addresses[0]) if info.addresses else "unknown"
+        
+        constitutional_version_raw = props.get('constitutional_version', '1.0')
+        constitutional_version = str(constitutional_version_raw) if constitutional_version_raw is not None else '1.0'
         
         return LLMNode(
             node_id=node_id,
             address=address,
-            port=info.port,
+            port=info.port or 11434,
             provider_type=LLMProvider(props.get('provider', 'ollama')),
             available_models=models,
-            constitutional_version=props.get('constitutional_version', '1.0'),
+            constitutional_version=constitutional_version,
             api_endpoint=f"http://{address}:{info.port}",
             health_status='unknown',
             response_time_ms=0.0,

@@ -9,10 +9,11 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box, AppBar, Toolbar, Typography, BottomNavigation, BottomNavigationAction, Alert, Snackbar } from '@mui/material';
-import { AccountTree, Timeline, Terminal, Settings, Security } from '@mui/icons-material';
+import { AccountTree, Timeline, Terminal, Settings, Security, Chat } from '@mui/icons-material';
 
 // Constitutional pages
 import { 
+  ChatPage,
   NetworkVisualizationPage,
   InternalFeedPage,
   LogsPage,
@@ -114,6 +115,12 @@ const App: React.FC = () => {
 
   // Page configuration with constitutional principles
   const pages = [
+    {
+      label: 'Chat',
+      icon: <Chat />,
+      component: <ChatPage apiService={apiService} />,
+      description: 'Audio-visual chat with Admin AI'
+    },
     {
       label: 'Network',
       icon: <AccountTree />,
@@ -296,11 +303,12 @@ const App: React.FC = () => {
           {/* Main Content Area */}
           <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
             <Routes>
-              <Route path="/" element={<Navigate to="/network" replace />} />
-              <Route path="/network" element={pages[0].component} />
-              <Route path="/feed" element={pages[1].component} />
-              <Route path="/logs" element={pages[2].component} />
-              <Route path="/settings" element={pages[3].component} />
+              <Route path="/" element={<Navigate to="/chat" replace />} />
+              <Route path="/chat" element={pages[0].component} />
+              <Route path="/network" element={pages[1].component} />
+              <Route path="/feed" element={pages[2].component} />
+              <Route path="/logs" element={pages[3].component} />
+              <Route path="/settings" element={pages[4].component} />
             </Routes>
           </Box>
 
@@ -310,7 +318,7 @@ const App: React.FC = () => {
             onChange={(event, newValue) => {
               setCurrentPage(newValue);
               // Navigate to corresponding route
-              const routes = ['/network', '/feed', '/logs', '/settings'];
+              const routes = ['/chat', '/network', '/feed', '/logs', '/settings'];
               window.history.pushState(null, '', routes[newValue]);
             }}
             showLabels

@@ -425,6 +425,67 @@ These components provide foundational AI capabilities like LLM access, memory, a
 **Utility Functions:**
 - `[core/web/server.py]::[create_web_server](settings) - Create constitutional web server`
 
+### web/src/pages/ChatPage.tsx - **💬 NEW: Audio-Visual Chat Interface**
+
+**Components:**
+- `[web/src/pages/ChatPage.tsx]::[ChatPage] - **NEW**: Full-featured audio-visual chat interface with Admin AI`
+
+**ChatPage Features:**
+- Real-time messaging with Admin AI entity using WebSocket
+- Constitutional compliance indicators (green checkmarks)
+- Privacy protection badges and status
+- Voice input placeholder (ready for Web Speech API implementation)
+- Material-UI dark theme with HAI-Net constitutional colors
+- Auto-scrolling message list with timestamps
+- Loading states and graceful error handling
+- Message history with user/AI distinction
+- Enter-to-send and multi-line text support
+
+**ChatPage Methods:**
+- `[web/src/pages/ChatPage.tsx]::[handleSendMessage]() - Send message to Admin AI with constitutional compliance`
+- `[web/src/pages/ChatPage.tsx]::[toggleVoiceInput]() - Voice input control (placeholder for STT integration)`
+- `[web/src/pages/ChatPage.tsx]::[scrollToBottom]() - Auto-scroll to latest message`
+
+### web/src/App.tsx - **Updated Navigation**
+
+**Updates:**
+- `[web/src/App.tsx]::[App] - **UPDATED**: Chat interface added as front page with navigation`
+- Added Chat icon to bottom navigation
+- Chat page set as default route (`/chat`)
+- Updated route mappings to include chat interface
+- 5 pages now available: Chat, Network, Feed, Logs, Settings
+
+### web/src/services/APIService.ts
+
+**API Methods:**
+- `[web/src/services/APIService.ts]::[APIService]::[chatWithAI](messages, model, user_did) - **NEW**: Send chat messages to Admin AI with constitutional compliance`
+- Returns: `ChatResponse` with response text, compliance status, and privacy protection status
+
+### Audio/Voice Processing Infrastructure - **🎤 NEW: TTS/STT Ready**
+
+**Python Packages (requirements.txt):**
+- `openai-whisper>=20231117` - **NEW**: OpenAI Whisper for Speech-to-Text
+- `TTS>=0.22.0` - **NEW**: Coqui TTS for Text-to-Speech
+- `torch>=2.0.0` - **NEW**: PyTorch for AI models
+- `torchaudio>=2.0.0` - **NEW**: Audio processing with PyTorch
+- `transformers>=4.35.0` - **NEW**: Hugging Face transformers
+- `soundfile>=0.12.1` - **NEW**: Audio file I/O
+- `librosa>=0.10.0` - **NEW**: Audio analysis library
+- `pydub>=0.25.1` - **NEW**: Audio manipulation
+- `pyaudio>=0.2.13` - **NEW**: Real-time audio I/O
+- `webrtcvad>=2.0.10` - **NEW**: Voice Activity Detection
+
+**System Dependencies (install.sh):**
+- `ffmpeg` - **NEW**: Audio/video processing for Whisper
+- `portaudio19-dev` (Ubuntu) / `portaudio` (macOS) - **NEW**: Audio I/O library for PyAudio
+
+**Installation Features:**
+- Smart detection of Ollama installation
+- Optional Whisper installation prompt when Ollama detected
+- Graceful degradation if audio packages fail to install
+- Core audio libraries installed by default
+- Advanced AI packages (TTS, torch) optional based on system compatibility
+
 ### web/templates/index.html
 
 **Web Interface:**

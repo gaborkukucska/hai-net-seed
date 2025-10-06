@@ -42,10 +42,12 @@ The foundational, event-driven agent workflow is now implemented and tested. Thi
 | Component | Status | Description |
 |-----------|--------|-------------|
 | 🤖 **AI Agent System** | ✅ Functional | The core automated workflow (Admin -> PM -> Worker) is operational. |
+| 💬 **Chat Interface** | ✅ Functional | Audio-visual chat interface with Admin AI, voice features ready. |
 | 🧪 **Testing Framework**| ✅ Functional | A robust testing framework with a mock LLM and an end-to-end workflow test is in place. |
 | ⚙️ **Configuration** | ✅ Functional | Pydantic-based settings management is working. |
 | 📊 **Logging System** | ✅ Functional | Constitutional logger is integrated. |
-| 🌐 **Web Interface** | 🟡 Placeholder | FastAPI server runs, but UI build is not fully integrated and requires fixing. |
+| 🌐 **Web Interface** | ✅ Functional | React UI with Material-UI, WebGPU network visualization, chat page. |
+| 🎤 **Audio/TTS/STT** | 🟡 Infrastructure | Whisper, Coqui TTS packages integrated, voice UI ready for implementation. |
 | 🔐 **Identity System** | 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
 | 🌐 **P2P Networking** | 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
 | 🗄️ **Database & Storage**| 🟡 Placeholder | Core classes exist but are not integrated into the agent workflow. |
@@ -77,6 +79,7 @@ The foundational, event-driven agent workflow is now implemented and tested. Thi
 - **Backend**: Python 3.9+, FastAPI, SQLite, asyncio, WebSocket
 - **Frontend**: React 18+, TypeScript, Material-UI, WebGPU ready  
 - **AI**: Ollama integration, vector search, constitutional filtering
+- **Audio**: OpenAI Whisper (STT), Coqui TTS (Text-to-Speech), PyAudio, librosa
 - **Networking**: P2P communication, mDNS discovery, TLS 1.3 + Noise Protocol
 - **Security**: Argon2id, ChaCha20, RSA cryptography, encrypted storage
 - **Architecture**: 3-layer design, agent state machines, real-time updates
@@ -145,9 +148,12 @@ The `./launch.sh` script provides multiple launch modes:
 
 ### **🌐 Web Interface Access**
 After launching, access HAI-Net at:
-- **Network Visualization**: http://localhost:8080 (WebGPU accelerated)
+- **Chat Interface**: http://localhost:8080/chat (Audio-visual Admin AI chat - **NEW!**)
+- **Network Visualization**: http://localhost:8080/network (WebGPU accelerated)
+- **Activity Feed**: http://localhost:8080/feed (Real-time AI activity)
+- **Logs**: http://localhost:8080/logs (System logs and audit trail)
+- **Settings**: http://localhost:8080/settings (Constitutional settings)
 - **API Documentation**: http://localhost:8000/docs
-- **Constitutional Dashboard**: http://localhost:8080/constitutional
 
 ### **🔧 Manual Installation (Advanced Users)**
 

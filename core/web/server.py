@@ -116,8 +116,9 @@ class WebServer:
     def _setup_routes(self):
         """Setup API routes with constitutional compliance"""
         
-        # Health check
+        # Health check (both /health and /api/health for compatibility)
         @self.app.get("/health")
+        @self.app.get("/api/health")
         async def health_check():
             """System health check"""
             return {
@@ -282,6 +283,7 @@ class WebServer:
             return {"results": search_results}
         
         # Settings management
+        @self.app.get("/settings")
         @self.app.get("/api/settings")
         async def get_settings():
             """Get non-sensitive settings"""

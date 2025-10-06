@@ -138,7 +138,10 @@ install_system_dependencies() {
                 nodejs \
                 npm \
                 docker.io \
-                docker-compose
+                docker-compose \
+                ffmpeg \
+                portaudio19-dev \
+                python3-pyaudio
             
             # Add user to docker group (Constitutional principle: user rights)
             if groups $USER | grep &>/dev/null '\bdocker\b'; then
@@ -159,7 +162,7 @@ install_system_dependencies() {
             fi
             
             brew update
-            brew install python@3.12 node npm git
+            brew install python@3.12 node npm git ffmpeg portaudio
             
             # Install Docker Desktop for Mac
             if ! command -v docker &> /dev/null; then
@@ -173,6 +176,8 @@ install_system_dependencies() {
             echo "  - Node.js 16+"
             echo "  - Git"
             echo "  - Docker"
+            echo "  - FFmpeg (for audio processing)"
+            echo "  - PortAudio (for audio I/O)"
             ;;
     esac
 }
@@ -254,7 +259,9 @@ create_constitutional_environment() {
         pytest-asyncio>=0.21.0 \
         requests>=2.31.0 \
         aiohttp>=3.8.0 \
-        numpy>=1.21.0
+        numpy>=1.21.0 \
+        soundfile>=0.12.1 \
+        pydub>=0.25.1
     
     if [ $? -eq 0 ]; then
         log_success "Core dependencies installed successfully"
@@ -263,28 +270,48 @@ create_constitutional_environment() {
         return 1
     fi
     
+    # Install audio processing dependencies for voice features
+    log_info "Installing audio processing dependencies for voice features..."
+    pip install librosa>=0.10.0 || log_warning "librosa installation failed"
+    pip install webrtcvad>=2.0.10 || log_warning "webrtcvad installation failed"
+    pip install pyaudio>=0.2.13 || log_warning "PyAudio installation failed - voice input may not work. Install portaudio system package first."
+    
     # Handle AI dependencies based on system capabilities
     if [ "$HAS_OLLAMA" = true ]; then
         log_success "External Ollama detected - skipping local AI installation for better compatibility"
         log_info "HAI-Net will connect to your existing Ollama server"
+        
+        # Still ask about Whisper for voice features
+        read -p "Install Whisper for voice-to-text? (requires ffmpeg) (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Installing OpenAI Whisper..."
+            pip install openai-whisper || log_warning "Whisper installation failed"
+        fi
     elif [ "$PYTHON_AI_COMPATIBLE" = false ]; then
         log_warning "Python version may be incompatible with some AI packages"
         log_info "Using minimal AI setup - you can connect to external AI services"
     else
-        read -p "Install additional AI dependencies? (may cause compatibility issues on some systems) (y/N): " -n 1 -r
+        read -p "Install AI dependencies (Whisper, TTS, Transformers)? (may cause compatibility issues) (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Installing optional AI dependencies..."
-            log_warning "This may fail on some systems - core functionality will work regardless"
+            log_info "Installing AI dependencies..."
+            log_warning "This may take a while and fail on some systems - core functionality will work regardless"
             
-            # Try to install AI packages individually to avoid complete failure
+            # Install Whisper for STT
+            pip install openai-whisper || log_warning "Whisper installation failed"
+            
+            # Install Transformers
             pip install transformers>=4.35.0 || log_warning "transformers installation failed"
             
-            # Skip problematic packages that caused the original error
-            log_info "Skipping TTS and torch due to compatibility issues on older systems"
-            log_info "You can install these manually later if needed"
+            # Try to install TTS (Coqui TTS)
+            pip install TTS>=0.22.0 || log_warning "TTS installation failed"
+            
+            # Try to install torch and torchaudio (can be large)
+            log_info "Installing PyTorch (this may take several minutes)..."
+            pip install torch>=2.0.0 torchaudio>=2.0.0 --index-url https://download.pytorch.org/whl/cpu || log_warning "PyTorch installation failed"
         else
-            log_info "Skipping AI dependencies - using minimal installation"
+            log_info "Skipping AI dependencies - you can install these manually later if needed"
         fi
     fi
     
