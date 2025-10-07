@@ -476,6 +476,11 @@ class WebServer:
         else:
             self.logger.warning(f"Cannot subscribe to agent events - agent_manager: {agent_manager is not None}, has_emitter: {hasattr(agent_manager, 'event_emitter') if agent_manager else False}", category="web", function="inject_dependencies")
         
+        # Start Constitutional Guardian monitoring
+        if guardian:
+            asyncio.create_task(self._start_guardian_monitoring())
+            self.logger.info("Scheduled Constitutional Guardian monitoring startup", category="web", function="inject_dependencies")
+        
         self.logger.log_decentralization_event(
             "web_server_dependencies_injected",
             local_processing=True
@@ -547,10 +552,34 @@ class WebServer:
         except Exception as e:
             self.logger.debug(f"Error logging discovery: {e}", category="discovery", function="_log_discovery_progress")
     
+    async def _start_guardian_monitoring(self):
+        """Start the Constitutional Guardian monitoring service"""
+        try:
+            if self.guardian:
+                self.logger.info("🛡️ Starting Constitutional Guardian monitoring...", category="guardian", function="_start_guardian_monitoring")
+                
+                if await self.guardian.start_monitoring():
+                    self.logger.info("✅ Constitutional Guardian monitoring active", category="guardian", function="_start_guardian_monitoring")
+                    
+                    # Log initial compliance status
+                    await asyncio.sleep(1)
+                    status = self.guardian.get_guardian_status()
+                    self.logger.info(f"🎯 Constitutional Compliance Score: {status['compliance_score']:.2f}", category="guardian", function="_start_guardian_monitoring")
+                else:
+                    self.logger.error("❌ Failed to start Constitutional Guardian monitoring", category="guardian", function="_start_guardian_monitoring")
+        except Exception as e:
+            self.logger.error(f"Error starting Guardian monitoring: {e}", category="guardian", function="_start_guardian_monitoring")
+    
     async def _graceful_shutdown(self):
         """Gracefully shutdown all services"""
         try:
             self.logger.info("🔄 Starting graceful shutdown...", category="web", function="_graceful_shutdown")
+            
+            # Stop Constitutional Guardian
+            if self.guardian:
+                self.logger.info("🛡️ Stopping Constitutional Guardian...", category="web", function="_graceful_shutdown")
+                await self.guardian.stop_monitoring()
+                self.logger.info("✅ Guardian stopped", category="web", function="_graceful_shutdown")
             
             # Stop AI discovery
             if self.llm_discovery:
@@ -634,9 +663,14 @@ if __name__ == "__main__":
         llm_manager = LLMManager(settings)
         await llm_manager.initialize(llm_discovery=llm_discovery)
 
+        # Memory Manager for agent memory storage
+        print("Initializing Memory Manager...")
+        from core.ai.memory import create_memory_manager
+        memory_manager = create_memory_manager(settings)
+
         # Agent Manager is needed by Tool Executor
         print("Initializing Agent Manager...")
-        agent_manager = AgentManager(settings, llm_manager=llm_manager)
+        agent_manager = AgentManager(settings, llm_manager=llm_manager, memory_manager=memory_manager)
 
         # Tool Executor is needed by Interaction Handler
         print("Initializing Tool Executor...")
@@ -648,7 +682,8 @@ if __name__ == "__main__":
         workflow_manager = WorkflowManager(settings)
 
         # Cycle Handler orchestrates agent execution
-        cycle_handler = AgentCycleHandler(settings, interaction_handler, workflow_manager, guardian)
+        cycle_handler = AgentCycleHandler(settings, interaction_handler, workflow_manager, guardian, 
+                                         memory_manager=memory_manager)
 
         # 3. Wire up the dependencies for the agent manager
         print("🔗 Wiring up component dependencies...")
@@ -672,8 +707,8 @@ if __name__ == "__main__":
         web_server.inject_dependencies(
             llm_manager=llm_manager,
             agent_manager=agent_manager,
-            guardian=guardian
-            # TODO: Inject other managers like MemoryManager etc. later
+            guardian=guardian,
+            memory_manager=memory_manager
         )
         
         try:

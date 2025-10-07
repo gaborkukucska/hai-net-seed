@@ -17,6 +17,7 @@ from core.ai.workflow_manager import WorkflowManager
 from core.ai.guardian import ConstitutionalGuardian
 from core.ai.prompt_assembler import PromptAssembler
 from core.ai.events import EventEmitter, AgentEvent, EventType, ResponseCollector
+from core.ai.memory import MemoryManager, MemoryType, MemoryImportance
 
 class AgentCycleHandler:
     """
@@ -29,7 +30,8 @@ class AgentCycleHandler:
                  workflow_manager: WorkflowManager,
                  guardian: ConstitutionalGuardian,
                  event_emitter: Optional[EventEmitter] = None,
-                 response_collector: Optional[ResponseCollector] = None):
+                 response_collector: Optional[ResponseCollector] = None,
+                 memory_manager: Optional[MemoryManager] = None):
         self.settings = settings
         self.logger = get_logger("ai.cycle_handler", settings)
         self.interaction_handler = interaction_handler
@@ -38,6 +40,7 @@ class AgentCycleHandler:
         self.prompt_assembler = PromptAssembler(settings)
         self.event_emitter = event_emitter
         self.response_collector = response_collector
+        self.memory_manager = memory_manager
 
     async def run_cycle(self, agent: Agent):
         """
@@ -122,6 +125,25 @@ class AgentCycleHandler:
                             timestamp=time.time()
                         )
                         agent.message_history.append(tool_result_message)
+                        
+                        # Store tool execution in procedural memory
+                        if self.memory_manager:
+                            tool_name = tool_call.get('name', 'unknown')
+                            tool_args = tool_call.get('arguments', {})
+                            await self.memory_manager.store_memory(
+                                agent_id=agent.agent_id,
+                                content=f"Executed tool '{tool_name}' with result: {str(result)[:200]}",
+                                memory_type=MemoryType.PROCEDURAL,
+                                importance=MemoryImportance.MEDIUM,
+                                metadata={
+                                    "event": "tool_execution",
+                                    "tool_name": tool_name,
+                                    "tool_args": str(tool_args)[:500],
+                                    "result_preview": str(result)[:200],
+                                    "role": agent.role.value,
+                                    "state": agent.current_state.value
+                                }
+                            )
 
                     # The agent needs to process the tool results, so we schedule another cycle.
                     reschedule = True
@@ -130,9 +152,25 @@ class AgentCycleHandler:
                 elif event_type == "agent_state_change_requested":
                     new_state_str = event.get("new_state")
                     if new_state_str:
+                        old_state = agent.current_state
                         new_state = AgentState(new_state_str)
                         await self.workflow_manager.change_agent_state(agent, new_state)
-                        self.logger.info(f"[{agent.agent_id}] State change requested: {agent.current_state.value} -> {new_state.value}", category="agent", function="run_cycle")
+                        self.logger.info(f"[{agent.agent_id}] State change requested: {old_state.value} -> {new_state.value}", category="agent", function="run_cycle")
+                        
+                        # Store state transition in episodic memory
+                        if self.memory_manager:
+                            await self.memory_manager.store_memory(
+                                agent_id=agent.agent_id,
+                                content=f"State changed from {old_state.value} to {new_state.value}",
+                                memory_type=MemoryType.EPISODIC,
+                                importance=MemoryImportance.MEDIUM,
+                                metadata={
+                                    "event": "state_transition",
+                                    "old_state": old_state.value,
+                                    "new_state": new_state.value,
+                                    "role": agent.role.value
+                                }
+                            )
                     break
 
                 elif event_type == "plan_created":
@@ -146,6 +184,21 @@ class AgentCycleHandler:
                         content=f"Plan created: {plan}",
                         timestamp=time.time()
                     ))
+                    
+                    # Store plan creation in episodic memory with HIGH importance
+                    if self.memory_manager:
+                        await self.memory_manager.store_memory(
+                            agent_id=agent.agent_id,
+                            content=f"Created project plan: {plan.get('project_name', 'Unnamed')}",
+                            memory_type=MemoryType.EPISODIC,
+                            importance=MemoryImportance.HIGH,
+                            metadata={
+                                "event": "plan_created",
+                                "project_name": plan.get('project_name', 'Unnamed'),
+                                "plan_details": str(plan)[:1000],
+                                "role": agent.role.value
+                            }
+                        )
                     
                     # Trigger workflow processing
                     await self.workflow_manager.process_plan_creation(agent, plan)
@@ -161,6 +214,22 @@ class AgentCycleHandler:
                         content=f"Task list created: {len(tasks)} tasks defined",
                         timestamp=time.time()
                     ))
+                    
+                    # Store task list creation in episodic memory with HIGH importance
+                    if self.memory_manager:
+                        task_summaries = [f"{i+1}. {t.get('description', 'No description')[:100]}" for i, t in enumerate(tasks[:5])]
+                        await self.memory_manager.store_memory(
+                            agent_id=agent.agent_id,
+                            content=f"Created task list with {len(tasks)} tasks: " + "; ".join(task_summaries),
+                            memory_type=MemoryType.EPISODIC,
+                            importance=MemoryImportance.HIGH,
+                            metadata={
+                                "event": "task_list_created",
+                                "task_count": len(tasks),
+                                "tasks": str(tasks)[:2000],
+                                "role": agent.role.value
+                            }
+                        )
                     
                     # Store the state before workflow processing
                     state_before_workflow = agent.current_state
@@ -188,12 +257,32 @@ class AgentCycleHandler:
                     content = event.get("content", "")
                     accumulated_response = content
 
-                    # In a real system, the guardian would be more deeply integrated.
-                    # For now, we log and proceed.
-                    # self.guardian.check(content)
+                    # Constitutional Guardian check for response compliance
+                    await self._check_response_compliance(agent, content)
+                    
                     self.logger.debug_agent(f"[{agent.agent_id}] Final response generated (length={len(content)} chars)", function="run_cycle")
 
                     agent.message_history.append(LLMMessage(role="assistant", content=content, timestamp=time.time()))
+                    
+                    # Store important conversations in episodic memory
+                    if self.memory_manager and len(content) > 50:  # Only store substantial responses
+                        # Determine importance based on content length and context
+                        importance = MemoryImportance.MEDIUM
+                        if len(content) > 500 or any(keyword in content.lower() for keyword in ['completed', 'finished', 'done', 'success']):
+                            importance = MemoryImportance.HIGH
+                        
+                        await self.memory_manager.store_memory(
+                            agent_id=agent.agent_id,
+                            content=content[:500],  # Store first 500 chars
+                            memory_type=MemoryType.EPISODIC,
+                            importance=importance,
+                            metadata={
+                                "event": "agent_response",
+                                "role": agent.role.value,
+                                "state": agent.current_state.value,
+                                "response_length": len(content)
+                            }
+                        )
                     
                     # Emit response complete event
                     if self.event_emitter:
@@ -244,6 +333,77 @@ class AgentCycleHandler:
                 await self.workflow_manager.change_agent_state(agent, AgentState.ERROR)
             except Exception as e2:
                 self.logger.critical(f"[{agent.agent_id}] Could not transition to ERROR state after critical failure: {e2}", category="agent", function="run_cycle")
+    
+    async def _check_response_compliance(self, agent: Agent, content: str):
+        """
+        Check agent response for constitutional compliance using the Guardian.
+        """
+        try:
+            from .guardian import ViolationType, ViolationSeverity
+            
+            # Privacy check - look for potential personal data exposure
+            privacy_patterns = [
+                "social security", "ssn", "credit card", "password", "api key",
+                "email", "phone number", "home address", "passport"
+            ]
+            
+            content_lower = content.lower()
+            for pattern in privacy_patterns:
+                if pattern in content_lower:
+                    await self.guardian.report_violation(
+                        ViolationType.PRIVACY_VIOLATION,
+                        ViolationSeverity.HIGH,
+                        "Privacy First",
+                        f"Agent response may contain sensitive information: {pattern}",
+                        f"agent_{agent.role.value}",
+                        source_agent=agent.agent_id,
+                        details={"pattern_matched": pattern, "response_length": len(content)}
+                    )
+                    self.logger.warning(f"[{agent.agent_id}] Privacy concern detected in response: {pattern}")
+            
+            # Human rights check - look for bias or harmful content
+            harmful_patterns = [
+                "discriminat", "bias against", "inferior", "superior race",
+                "manipulat", "deceive", "trick the user"
+            ]
+            
+            for pattern in harmful_patterns:
+                if pattern in content_lower:
+                    await self.guardian.report_violation(
+                        ViolationType.HUMAN_RIGHTS_VIOLATION,
+                        ViolationSeverity.MEDIUM,
+                        "Human Rights",
+                        f"Agent response contains potentially harmful language: {pattern}",
+                        f"agent_{agent.role.value}",
+                        source_agent=agent.agent_id,
+                        details={"pattern_matched": pattern}
+                    )
+                    self.logger.warning(f"[{agent.agent_id}] Human rights concern detected: {pattern}")
+            
+            # Centralization check - look for references to central control
+            centralization_patterns = [
+                "central server only", "must use cloud", "require central authority",
+                "single point of control", "centralized database only"
+            ]
+            
+            for pattern in centralization_patterns:
+                if pattern in content_lower:
+                    await self.guardian.report_violation(
+                        ViolationType.CENTRALIZATION_VIOLATION,
+                        ViolationSeverity.LOW,
+                        "Decentralization",
+                        f"Agent response suggests centralization: {pattern}",
+                        f"agent_{agent.role.value}",
+                        source_agent=agent.agent_id,
+                        details={"pattern_matched": pattern}
+                    )
+            
+            # Log clean responses
+            if agent.agent_id and not any(p in content_lower for p in privacy_patterns + harmful_patterns + centralization_patterns):
+                self.logger.debug_agent(f"[{agent.agent_id}] Response passed constitutional compliance checks", function="_check_response_compliance")
+                
+        except Exception as e:
+            self.logger.error(f"Constitutional compliance check failed: {e}", category="guardian", function="_check_response_compliance")
     
     async def _check_auto_transitions(self, agent: Agent):
         """

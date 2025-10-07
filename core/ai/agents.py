@@ -139,13 +139,15 @@ class Agent:
     def __init__(self, agent_id: str, role: AgentRole, settings: HAINetSettings,
                  manager: 'AgentManager',
                  llm_manager: Optional[LLMManager] = None,
-                 user_did: Optional[str] = None):
+                 user_did: Optional[str] = None,
+                 memory_manager: Optional['MemoryManager'] = None):
         self.agent_id = agent_id
         self.role = role
         self.settings = settings
         self.manager = manager
         self.llm_manager = llm_manager
         self.user_did = user_did
+        self.memory_manager = memory_manager
         self.logger = get_logger(f"ai.agent.{agent_id}", settings)
         
         # Agent state
@@ -155,7 +157,7 @@ class Agent:
         
         # Agent properties
         self.capabilities: Set[AgentCapability] = set()
-        self.memory = AgentMemory()
+        self.memory = AgentMemory()  # Keep for backward compatibility
         self.message_history: List[LLMMessage] = []
         self.metrics = AgentMetrics(
             uptime_seconds=0,
@@ -288,7 +290,7 @@ class Agent:
                 "last_check": time.time()
             }
         
-        # Add startup memory
+        # Add startup memory to legacy memory
         self.memory.episodic.append({
             "event": "agent_startup",
             "timestamp": time.time(),
@@ -296,6 +298,17 @@ class Agent:
             "role": self.role.value,
             "constitutional_compliant": True
         })
+        
+        # Store startup memory in MemoryManager if available
+        if self.memory_manager:
+            from .memory import MemoryType, MemoryImportance
+            await self.memory_manager.store_memory(
+                agent_id=self.agent_id,
+                content=f"Agent {self.agent_id} started with role {self.role.value}",
+                memory_type=MemoryType.EPISODIC,
+                importance=MemoryImportance.LOW,
+                metadata={"event": "startup", "state": self.current_state.value}
+            )
         
         # Initialize role-specific setup
         if self.role == AgentRole.GUARDIAN:
@@ -556,7 +569,8 @@ class AgentManager:
     Central orchestrator for the agentic framework.
     """
     
-    def __init__(self, settings: HAINetSettings, llm_manager: Optional[LLMManager] = None):
+    def __init__(self, settings: HAINetSettings, llm_manager: Optional[LLMManager] = None, 
+                 memory_manager: Optional['MemoryManager'] = None):
         self.settings = settings
         self.llm_manager = llm_manager
         self.logger = get_logger("ai.agent.manager", settings)
@@ -573,6 +587,14 @@ class AgentManager:
         # Event system for real-time communication
         self.event_emitter = create_event_emitter(settings)
         self.response_collector = ResponseCollector()
+        
+        # Memory management
+        self.memory_manager = memory_manager
+        if not self.memory_manager:
+            # Create shared memory manager for all agents if not provided
+            from .memory import create_memory_manager
+            self.memory_manager = create_memory_manager(settings)
+            self.logger.info("Created shared MemoryManager for all agents")
         
         self.manager_metrics = {
             "total_agents_created": 0,
@@ -614,7 +636,8 @@ class AgentManager:
                     settings=self.settings,
                     manager=self,
                     llm_manager=self.llm_manager,
-                    user_did=user_did
+                    user_did=user_did,
+                    memory_manager=self.memory_manager
                 )
                 
                 # Add custom capabilities if provided
