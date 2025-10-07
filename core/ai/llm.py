@@ -462,10 +462,20 @@ class OllamaProvider:
                 )
                 
         except Exception as e:
-            self.logger.error(f"Ollama generation failed: {e}", category="ai", function="generate_response")
+            import traceback
+            error_details = {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            }
+            self.logger.error(
+                f"Ollama generation failed: {error_details['error_type']}: {error_details['error']}\n{error_details['traceback']}", 
+                category="ai", 
+                function="generate_response"
+            )
             
             return LLMResponse(
-                content="I apologize, but I'm currently unable to process your request due to a technical issue. Please try again later.",
+                content=f"I apologize, but I'm currently unable to process your request. Error: {error_details['error_type']}. Please ensure Ollama is running and a model is loaded.",
                 model=model,
                 provider=LLMProvider.OLLAMA,
                 tokens_used=0,
@@ -473,7 +483,7 @@ class OllamaProvider:
                 constitutional_compliant=True,
                 privacy_protected=True,
                 timestamp=time.time(),
-                metadata={"error": str(e)}
+                metadata=error_details
             )
     
     async def stream_response(self, messages: List[LLMMessage], model: str,

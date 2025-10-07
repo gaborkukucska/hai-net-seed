@@ -322,15 +322,15 @@ This file defines the fundamental building blocks of the agentic system.
 **Agent Methods:**
 - `[core/ai/agents.py]::[Agent]::[__init__](...) - Initializes a constitutional agent with a role, state, and capabilities.`
 - `[core/ai/agents.py]::[Agent]::[start]() / [stop]() - Manages the agent's lifecycle.`
-- `[core/ai/agents.py]::[Agent]::[process_message](messages) - **CRITICAL**: The core async generator that yields prioritized events (tool requests, workflow triggers, final response) for the `AgentCycleHandler` to process.`
+- `[core/ai/agents.py]::[Agent]::[process_message](messages) - **CRITICAL**: The core async generator that yields prioritized events (tool requests, workflow triggers, final response) with chunk streaming for real-time display.`
 - `[core/ai/agents.py]::[Agent]::[transition_state](new_state) - The primary method for transitioning an agent to a new state.`
 - `[core/ai/agents.py]::[Agent]::[get_status]() - Returns the agent's current status and metrics.`
 
 **AgentManager Methods:**
-- `[core/ai/agents.py]::[AgentManager]::[__init__](settings, llm_manager) - Initializes the manager.`
-- `[core/ai/agents.py]::[AgentManager]::[set_handlers](cycle_handler, workflow_manager) - Injects the core handlers for agent execution.`
+- `[core/ai/agents.py]::[AgentManager]::[__init__](settings, llm_manager) - Initializes the manager with EventEmitter and ResponseCollector.`
+- `[core/ai/agents.py]::[AgentManager]::[set_handlers](cycle_handler, workflow_manager) - Injects the core handlers and event system for agent execution.`
 - `[core/ai/agents.py]::[AgentManager]::[create_agent](role, ...) - Creates, starts, and registers a new agent.`
-- `[core/ai/agents.py]::[AgentManager]::[handle_user_message](user_input, ...) - The primary entry point for user interaction, which routes input to the ADMIN agent.`
+- `[core/ai/agents.py]::[AgentManager]::[handle_user_message](user_input, ...) - **CRITICAL**: Primary entry point for user interaction, routes to ADMIN agent and waits for response using ResponseCollector.`
 - `[core/ai/agents.py]::[AgentManager]::[schedule_cycle](agent_id) - **CRITICAL**: Schedules an agent to be run by the `AgentCycleHandler`.`
 
 ### Agent Execution Handlers
@@ -353,6 +353,22 @@ These components manage the agent execution loop, tool interactions, and high-le
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_plan](text) - Extracts plan blocks from agent output.`
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_task_list](text) - Extracts task lists from PM agent output.`
 - `[core/ai/tool_parser.py]::[ToolCallParser]::[extract_create_worker_request](text) - Extracts a request to create a worker agent from PM output.`
+
+**`core/ai/events.py`** - **🔔 NEW: Event System for Real-Time Communication**
+- `[core/ai/events.py]::[EventType] - Enum for agent event types (AGENT_THINKING, RESPONSE_CHUNK, RESPONSE_COMPLETE, TOOL_EXECUTION, ERROR).`
+- `[core/ai/events.py]::[AgentEvent] - Data model for agent events with WebSocket serialization.`
+- `[core/ai/events.py]::[AgentEvent]::[to_websocket_message]() - Convert event to WebSocket-compatible format.`
+- `[core/ai/events.py]::[EventEmitter] - **CRITICAL**: Pub/sub event system for agent communication.`
+- `[core/ai/events.py]::[EventEmitter]::[subscribe](event_type, callback) - Subscribe to specific event type.`
+- `[core/ai/events.py]::[EventEmitter]::[subscribe_all](callback) - Subscribe to all event types.`
+- `[core/ai/events.py]::[EventEmitter]::[emit](event) - Emit event to all subscribers.`
+- `[core/ai/events.py]::[EventEmitter]::[unsubscribe](event_type, callback) - Unsubscribe from event type.`
+- `[core/ai/events.py]::[ResponseCollector] - **CRITICAL**: Collects streaming responses using async futures for synchronous API responses.`
+- `[core/ai/events.py]::[ResponseCollector]::[start_response](agent_id, user_did) - Initialize response collection for an agent.`
+- `[core/ai/events.py]::[ResponseCollector]::[add_chunk](agent_id, chunk) - Add response chunk for streaming assembly.`
+- `[core/ai/events.py]::[ResponseCollector]::[complete_response](agent_id, full_response) - Mark response as complete and resolve future.`
+- `[core/ai/events.py]::[ResponseCollector]::[wait_for_response](agent_id, timeout) - Wait for agent response with timeout.`
+- `[core/ai/events.py]::[create_event_emitter](settings) - Factory function for creating event emitter.`
 
 **`core/ai/interaction_handler.py`**
 - `[core/ai/interaction_handler.py]::[InteractionHandler] - Mediates between the `AgentCycleHandler` and the `ToolExecutor`.`
@@ -405,10 +421,12 @@ These components provide foundational AI capabilities like LLM access, memory, a
 - `[core/web/server.py]::[WebServer] - Constitutional web server with FastAPI`
 
 **WebServer Methods:**
-- `[core/web/server.py]::[WebServer]::[__init__](settings) - Initialize constitutional web server`
+- `[core/web/server.py]::[WebServer]::[__init__](settings) - Initialize constitutional web server with WebSocket support`
+- `[core/web/server.py]::[WebServer]::[inject_dependencies](...) - Inject core components and subscribe to agent events for WebSocket broadcasting`
 - `[core/web/server.py]::[WebServer]::[start](host, port) - Start the web server`
 - `[core/web/server.py]::[WebServer]::[stop]() - Stop the web server gracefully`
 - `[core/web/server.py]::[WebServer]::[broadcast_websocket_message](message) - Broadcast message to all WebSocket clients`
+- `[core/web/server.py]::[WebServer]::[_on_agent_event](event) - Handle agent events and broadcast via WebSocket`
 
 **API Endpoints:**
 - `[core/web/server.py]::[health_check]() - System health check endpoint`
@@ -431,7 +449,7 @@ These components provide foundational AI capabilities like LLM access, memory, a
 - `[web/src/pages/ChatPage.tsx]::[ChatPage] - **NEW**: Full-featured audio-visual chat interface with Admin AI`
 
 **ChatPage Features:**
-- Real-time messaging with Admin AI entity using WebSocket
+- Real-time messaging with Admin AI entity using WebSocket streaming
 - Constitutional compliance indicators (green checkmarks)
 - Privacy protection badges and status
 - Voice input placeholder (ready for Web Speech API implementation)
@@ -440,11 +458,17 @@ These components provide foundational AI capabilities like LLM access, memory, a
 - Loading states and graceful error handling
 - Message history with user/AI distinction
 - Enter-to-send and multi-line text support
+- **NEW**: localStorage-based chat persistence across page navigation
+- **NEW**: Real-time streaming response display (chunk-by-chunk)
+- **NEW**: Agent event handling (thinking, chunks, completion, errors)
 
 **ChatPage Methods:**
 - `[web/src/pages/ChatPage.tsx]::[handleSendMessage]() - Send message to Admin AI with constitutional compliance`
 - `[web/src/pages/ChatPage.tsx]::[toggleVoiceInput]() - Voice input control (placeholder for STT integration)`
 - `[web/src/pages/ChatPage.tsx]::[scrollToBottom]() - Auto-scroll to latest message`
+- `[web/src/pages/ChatPage.tsx]::[loadMessagesFromStorage]() - **NEW**: Load chat history from localStorage on mount`
+- `[web/src/pages/ChatPage.tsx]::[useEffect (WebSocket)]() - **NEW**: Initialize WebSocket connection and subscribe to agent events`
+- `[web/src/pages/ChatPage.tsx]::[useEffect (persistence)]() - **NEW**: Auto-save messages to localStorage on change`
 
 ### web/src/App.tsx - **Updated Navigation**
 
@@ -460,6 +484,23 @@ These components provide foundational AI capabilities like LLM access, memory, a
 **API Methods:**
 - `[web/src/services/APIService.ts]::[APIService]::[chatWithAI](messages, model, user_did) - **NEW**: Send chat messages to Admin AI with constitutional compliance`
 - Returns: `ChatResponse` with response text, compliance status, and privacy protection status
+
+### web/src/services/WebSocketService.ts - **🔌 NEW: WebSocket Streaming**
+
+**Classes:**
+- `[web/src/services/WebSocketService.ts]::[AgentEvent] - TypeScript interface for agent events with chunk, response, thought fields`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService] - WebSocket client service for real-time communication with backend`
+
+**WebSocketService Methods:**
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[connect]() - Establish WebSocket connection to server`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[disconnect]() - Close WebSocket connection`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onConnect](handler) - Register connection event handler`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onDisconnect](handler) - Register disconnection event handler`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onMessage](handler) - Register generic message handler`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onAgentEvent](handler) - **NEW**: Register handler for streaming agent events`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onConstitutionalUpdate](handler) - Register handler for constitutional status updates`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[onAgentUpdate](handler) - Register handler for agent status updates`
+- `[web/src/services/WebSocketService.ts]::[WebSocketService]::[handleMessage](message) - **NEW**: Route WebSocket messages to appropriate handlers including agent_event`
 
 ### Audio/Voice Processing Infrastructure - **🎤 NEW: TTS/STT Ready**
 

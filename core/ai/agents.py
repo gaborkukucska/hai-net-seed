@@ -17,6 +17,7 @@ from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
 from .llm import LLMManager, LLMMessage
 from .schemas import AgentMemory
+from .events import EventEmitter, ResponseCollector, create_event_emitter
 
 if TYPE_CHECKING:
     from .cycle_handler import AgentCycleHandler
@@ -364,6 +365,12 @@ class Agent:
             # Stream the response from the LLM provider
             async for chunk in self.llm_manager.stream_response(messages, model, self.user_did):
                 full_response += chunk
+                
+                # Yield chunk event for real-time streaming
+                yield {
+                    "type": "response_chunk",
+                    "content": chunk
+                }
 
             # Import the tool parser (dynamic import to avoid circular dependency)
             import importlib
@@ -420,13 +427,26 @@ class Agent:
 
             # Priority 5: Default to final response
             else:
+                # Strip any tool XML that might have been in the response
+                # This handles cases where the LLM included tool XML but it wasn't valid
+                cleaned_response = full_response
+                if "<tool_requests>" in cleaned_response:
+                    # Remove everything from <tool_requests> to </tool_requests>
+                    start_idx = cleaned_response.find("<tool_requests>")
+                    end_idx = cleaned_response.find("</tool_requests>")
+                    if end_idx != -1:
+                        cleaned_response = (cleaned_response[:start_idx] + 
+                                          cleaned_response[end_idx + len("</tool_requests>"):])
+                
+                cleaned_response = cleaned_response.strip()
+                
                 yield {
                     "type": "agent_thought",
                     "content": f"No tool request or special workflow trigger found. Preparing final response."
                 }
                 yield {
                     "type": "final_response",
-                    "content": full_response.strip()
+                    "content": cleaned_response
                 }
 
         except Exception as e:
@@ -550,6 +570,10 @@ class AgentManager:
         self.constitutional_version = "1.0"
         self.max_agents = 20
         
+        # Event system for real-time communication
+        self.event_emitter = create_event_emitter(settings)
+        self.response_collector = ResponseCollector()
+        
         self.manager_metrics = {
             "total_agents_created": 0,
             "active_agents": 0,
@@ -564,6 +588,10 @@ class AgentManager:
         self.workflow_manager = workflow_manager
         # Wire up the workflow manager's dependency on agent manager
         workflow_manager.set_agent_manager(self)
+        
+        # Inject event system into cycle handler
+        cycle_handler.event_emitter = self.event_emitter
+        cycle_handler.response_collector = self.response_collector
     
     async def create_agent(self, role: AgentRole, user_did: Optional[str] = None,
                           capabilities: Optional[Set[AgentCapability]] = None) -> Optional[str]:
@@ -635,8 +663,11 @@ class AgentManager:
             self.logger.error(f"Agent removal failed: {e}")
             return False
 
-    async def handle_user_message(self, user_input: str, user_did: Optional[str] = None):
-        """Primary entry point for user interaction."""
+    async def handle_user_message(self, user_input: str, user_did: Optional[str] = None) -> Optional[str]:
+        """
+        Primary entry point for user interaction.
+        Returns the agent's response (waits for completion).
+        """
         admin_agent = next((agent for agent in self.agents.values() if agent.role == AgentRole.ADMIN), None)
 
         if not admin_agent:
@@ -644,12 +675,29 @@ class AgentManager:
             admin_agent_id = await self.create_agent(AgentRole.ADMIN, user_did=user_did)
             if not admin_agent_id:
                 self.logger.error("Failed to create an Admin agent.")
-                return
+                return None
             admin_agent = self.get_agent(admin_agent_id)
 
         if admin_agent:
+            # Start collecting response
+            await self.response_collector.start_response(admin_agent.agent_id, user_did)
+            
+            # Add user message to history
             admin_agent.message_history.append(LLMMessage(role="user", content=user_input, timestamp=time.time()))
+            
+            # Schedule the agent cycle
             await self.schedule_cycle(admin_agent.agent_id)
+            
+            # Wait for response (30 second timeout)
+            response = await self.response_collector.wait_for_response(admin_agent.agent_id, timeout=30.0)
+            
+            if response:
+                return response
+            else:
+                self.logger.warning(f"Timeout waiting for response from {admin_agent.agent_id}")
+                return "I apologize, but I'm taking longer than expected to process your request. Please try again."
+        
+        return None
 
     async def schedule_cycle(self, agent_id: str):
         """Schedules an agent to be run by the AgentCycleHandler."""

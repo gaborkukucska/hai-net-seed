@@ -31,9 +31,11 @@ import {
   Warning,
 } from '@mui/icons-material';
 import { APIService, ChatMessage, ChatResponse } from '../services/APIService';
+import { WebSocketService, AgentEvent } from '../services/WebSocketService';
 
 interface ChatPageProps {
   apiService: APIService;
+  websocketService?: WebSocketService;
 }
 
 interface DisplayMessage extends ChatMessage {
@@ -43,21 +45,45 @@ interface DisplayMessage extends ChatMessage {
   privacy_protected?: boolean;
 }
 
-export const ChatPage: React.FC<ChatPageProps> = ({ apiService }) => {
-  const [messages, setMessages] = useState<DisplayMessage[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: '👋 Hello! I\'m your HAI-Net Admin AI entity. I\'m here to help you with your professional and personal goals while maintaining constitutional compliance. How can I assist you today?',
-      timestamp: Date.now(),
-      constitutional_compliant: true,
-      privacy_protected: true,
-    },
-  ]);
+export const ChatPage: React.FC<ChatPageProps> = ({ apiService, websocketService }) => {
+  // Load messages from localStorage on mount
+  const loadMessagesFromStorage = (): DisplayMessage[] => {
+    try {
+      const stored = localStorage.getItem('hainet_chat_messages');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load chat messages from storage:', error);
+    }
+    // Return default welcome message
+    return [
+      {
+        id: '0',
+        role: 'assistant',
+        content: '👋 Hello! I\'m your HAI-Net Admin AI entity. I\'m here to help you with your professional and personal goals while maintaining constitutional compliance. How can I assist you today?',
+        timestamp: Date.now(),
+        constitutional_compliant: true,
+        privacy_protected: true,
+      },
+    ];
+  };
+
+  const [messages, setMessages] = useState<DisplayMessage[]>(loadMessagesFromStorage());
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('hainet_chat_messages', JSON.stringify(messages));
+    } catch (error) {
+      console.error('Failed to save chat messages to storage:', error);
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -66,6 +92,138 @@ export const ChatPage: React.FC<ChatPageProps> = ({ apiService }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize WebSocket connection and event handlers
+  useEffect(() => {
+    if (!websocketService) return;
+
+    // Connect WebSocket
+    websocketService.connect();
+
+    // Subscribe to agent events for streaming
+    websocketService.onAgentEvent((event: AgentEvent) => {
+      console.log('Received agent event:', event);
+
+      switch (event.event) {
+        case 'agent_thinking':
+          // Show thinking indicator
+          const thinkingId = `${event.agent_id}-thinking-${event.timestamp}`;
+          setStreamingMessageId(thinkingId);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: thinkingId,
+              role: 'assistant',
+              content: event.thought || 'Thinking...',
+              timestamp: event.timestamp,
+              isLoading: true,
+            },
+          ]);
+          break;
+
+        case 'response_chunk':
+          // Accumulate chunks into streaming message
+          if (event.chunk) {
+            setMessages((prev) => {
+              const lastMessage = prev[prev.length - 1];
+              if (lastMessage && lastMessage.isLoading) {
+                // Update existing streaming message
+                return [
+                  ...prev.slice(0, -1),
+                  {
+                    ...lastMessage,
+                    content: (lastMessage.content || '') + event.chunk,
+                    isLoading: true,
+                  },
+                ];
+              } else {
+                // Create new streaming message if none exists
+                const newId = `${event.agent_id}-stream-${event.timestamp}`;
+                setStreamingMessageId(newId);
+                return [
+                  ...prev,
+                  {
+                    id: newId,
+                    role: 'assistant',
+                    content: event.chunk,
+                    timestamp: event.timestamp,
+                    isLoading: true,
+                  },
+                ];
+              }
+            });
+          }
+          break;
+
+        case 'response_complete':
+          // Finalize streaming message
+          setMessages((prev) => {
+            const lastMessage = prev[prev.length - 1];
+            if (lastMessage && lastMessage.isLoading) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastMessage,
+                  content: event.response || lastMessage.content,
+                  isLoading: false,
+                  constitutional_compliant: true,
+                  privacy_protected: true,
+                },
+              ];
+            }
+            return prev;
+          });
+          setStreamingMessageId(null);
+          setIsLoading(false);
+          break;
+
+        case 'tool_execution_start':
+          // Show tool execution indicator
+          setMessages((prev) => {
+            const lastMessage = prev[prev.length - 1];
+            if (lastMessage && lastMessage.isLoading) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastMessage,
+                  content: `🔧 Executing tool: ${event.role || 'unknown'}...`,
+                },
+              ];
+            }
+            return prev;
+          });
+          break;
+
+        case 'tool_execution_complete':
+          // Tool execution complete - continue streaming
+          break;
+
+        case 'error':
+          // Handle error events
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => !msg.isLoading);
+            return [
+              ...filtered,
+              {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: `⚠️ Error: ${event.chunk || 'Unknown error occurred'}`,
+                timestamp: event.timestamp,
+                constitutional_compliant: false,
+              },
+            ];
+          });
+          setStreamingMessageId(null);
+          setIsLoading(false);
+          break;
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      websocketService.disconnect();
+    };
+  }, [websocketService]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;

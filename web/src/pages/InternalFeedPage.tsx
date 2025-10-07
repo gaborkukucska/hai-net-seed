@@ -73,9 +73,6 @@ const InternalFeedPage: React.FC<InternalFeedPageProps> = ({ webSocketService })
   const [filteredEvents, setFilteredEvents] = useState<FeedEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(false);
 
   // Initialize feed data
   useEffect(() => {
@@ -196,65 +193,6 @@ const InternalFeedPage: React.FC<InternalFeedPageProps> = ({ webSocketService })
     setFilteredEvents(filtered);
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    setLoading(true);
-    try {
-      // Add user message to chat
-      const userMessage: ChatMessage = {
-        role: 'user',
-        content: newMessage,
-        timestamp: Date.now(),
-        constitutional_compliant: true,
-      };
-      setChatMessages(prev => [...prev, userMessage]);
-
-      // Add feed event for chat
-      addFeedEvent({
-        type: 'chat',
-        severity: 'info',
-        title: 'User Message',
-        message: `User: ${newMessage.substring(0, 50)}${newMessage.length > 50 ? '...' : ''}`,
-        component: 'chat_interface',
-        constitutional_compliant: true,
-      });
-
-      // Simulate AI response (in real implementation, this would call the API)
-      setTimeout(() => {
-        const aiResponse: ChatMessage = {
-          role: 'assistant',
-          content: `I understand your message about "${newMessage}". As a constitutional AI, I'm committed to protecting your privacy and human rights while providing helpful assistance.`,
-          timestamp: Date.now(),
-          constitutional_compliant: true,
-        };
-        setChatMessages(prev => [...prev, aiResponse]);
-
-        addFeedEvent({
-          type: 'chat',
-          severity: 'success',
-          title: 'AI Response',
-          message: 'Constitutional AI provided compliant response',
-          component: 'llm_manager',
-          constitutional_compliant: true,
-        });
-      }, 1000);
-
-      setNewMessage('');
-    } catch (error) {
-      addFeedEvent({
-        type: 'chat',
-        severity: 'error',
-        title: 'Chat Error',
-        message: `Failed to process message: ${error}`,
-        component: 'chat_interface',
-        constitutional_compliant: false,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getEventIcon = (event: FeedEvent) => {
     switch (event.type) {
       case 'constitutional':
@@ -360,155 +298,68 @@ const InternalFeedPage: React.FC<InternalFeedPageProps> = ({ webSocketService })
         </Box>
       </Box>
 
-      {/* Loading */}
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
-
-      {/* Main Content */}
-      <Box sx={{ flexGrow: 1, display: 'flex', gap: 2, minHeight: 0 }}>
-        {/* Events Feed */}
-        <Card sx={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
-          <CardContent sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              Live Events ({filteredEvents.length})
-            </Typography>
-            <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-              <List>
-                {filteredEvents.map((event) => (
-                  <ListItem key={event.id} divider>
-                    <ListItemIcon>
-                      {getEventIcon(event)}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="subtitle2">
-                            {event.title}
+      {/* Main Content - Events Feed */}
+      <Card sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <CardContent sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Typography variant="h6" gutterBottom>
+            Live Events ({filteredEvents.length})
+          </Typography>
+          <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+            <List>
+              {filteredEvents.map((event) => (
+                <ListItem key={event.id} divider>
+                  <ListItemIcon>
+                    {getEventIcon(event)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="subtitle2">
+                          {event.title}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {getSeverityIcon(event.severity)}
+                          <Typography variant="caption" color="textSecondary">
+                            {formatTimestamp(event.timestamp)}
                           </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {getSeverityIcon(event.severity)}
-                            <Typography variant="caption" color="textSecondary">
-                              {formatTimestamp(event.timestamp)}
-                            </Typography>
-                          </Box>
                         </Box>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            {event.message}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                            <Chip
-                              label={event.component}
-                              size="small"
-                              variant="outlined"
-                            />
-                            <Chip
-                              label={event.constitutional_compliant ? 'Compliant' : 'Violation'}
-                              size="small"
-                              color={event.constitutional_compliant ? 'success' : 'error'}
-                              variant="outlined"
-                            />
-                          </Box>
+                      </Box>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography variant="body2" color="textSecondary">
+                          {event.message}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                          <Chip
+                            label={event.component}
+                            size="small"
+                            variant="outlined"
+                          />
+                          <Chip
+                            label={event.constitutional_compliant ? 'Compliant' : 'Violation'}
+                            size="small"
+                            color={event.constitutional_compliant ? 'success' : 'error'}
+                            variant="outlined"
+                          />
                         </Box>
-                      }
-                    />
-                  </ListItem>
-                ))}
-                {filteredEvents.length === 0 && (
-                  <ListItem>
-                    <ListItemText
-                      primary="No events found"
-                      secondary="No events match your current filter criteria"
-                    />
-                  </ListItem>
-                )}
-              </List>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Chat Interface */}
-        <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <CardContent sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              Constitutional AI Chat
-            </Typography>
-            
-            {/* Chat Messages */}
-            <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
-              {chatMessages.length === 0 ? (
-                <Alert severity="info">
-                  Start a conversation with the constitutional AI! Your privacy and rights are protected.
-                </Alert>
-              ) : (
-                <List>
-                  {chatMessages.map((message, index) => (
-                    <ListItem key={index} sx={{ alignItems: 'flex-start' }}>
-                      <ListItemIcon>
-                        {message.role === 'user' ? <People /> : <Psychology />}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="subtitle2">
-                              {message.role === 'user' ? 'You' : 'Constitutional AI'}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary">
-                              {formatTimestamp(message.timestamp)}
-                            </Typography>
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            <Typography variant="body2">
-                              {message.content}
-                            </Typography>
-                            <Chip
-                              label={message.constitutional_compliant ? 'Compliant' : 'Violation'}
-                              size="small"
-                              color={message.constitutional_compliant ? 'success' : 'error'}
-                              variant="outlined"
-                              sx={{ mt: 1 }}
-                            />
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                  ))}
-                </List>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))}
+              {filteredEvents.length === 0 && (
+                <ListItem>
+                  <ListItemText
+                    primary="No events found"
+                    secondary="No events match your current filter criteria"
+                  />
+                </ListItem>
               )}
-            </Box>
-
-            {/* Chat Input */}
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                fullWidth
-                placeholder="Ask the Constitutional AI..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                disabled={loading}
-                multiline
-                maxRows={3}
-              />
-              <Fab
-                color="primary"
-                size="small"
-                onClick={handleSendMessage}
-                disabled={loading || !newMessage.trim()}
-              >
-                <Chat />
-              </Fab>
-            </Box>
-          </CardContent>
-        </Card>
-      </Box>
+            </List>
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Constitutional Principles Footer */}
       <Box sx={{ mt: 2, p: 2, backgroundColor: '#2a2a2a', borderRadius: 1 }}>

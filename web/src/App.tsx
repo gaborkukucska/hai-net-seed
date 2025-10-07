@@ -131,7 +131,7 @@ const AppContent: React.FC<{
     {
       label: 'Chat',
       icon: <Chat />,
-      component: <ChatPage apiService={apiService} />,
+      component: <ChatPage apiService={apiService} websocketService={webSocketService} />,
       description: 'Audio-visual chat with Admin AI'
     },
     {

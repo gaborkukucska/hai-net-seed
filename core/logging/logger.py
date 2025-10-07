@@ -165,8 +165,11 @@ class HAINetLogger:
             if not file_logging_enabled:
                 return  # Skip file logging if disabled
             
-            # Main log file
-            main_log = logs_dir / f"{self.name}.log"
+            # Generate timestamp for unique log file per session
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Main log file with timestamp
+            main_log = logs_dir / f"{self.name}_{timestamp}.log"
             file_handler = logging.handlers.RotatingFileHandler(
                 main_log,
                 maxBytes=10*1024*1024,  # 10MB
@@ -182,8 +185,8 @@ class HAINetLogger:
             # Log that file logging was successfully set up
             print(f"✅ File logging enabled: {main_log}")
             
-            # Constitutional compliance log
-            compliance_log = logs_dir / "constitutional_compliance.log"
+            # Constitutional compliance log with timestamp
+            compliance_log = logs_dir / f"constitutional_compliance_{timestamp}.log"
             compliance_handler = logging.handlers.RotatingFileHandler(
                 compliance_log,
                 maxBytes=5*1024*1024,  # 5MB

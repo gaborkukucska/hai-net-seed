@@ -27,6 +27,17 @@ export interface AgentUpdate {
   constitutional_compliant: boolean;
 }
 
+export interface AgentEvent {
+  type: string;
+  event: string;
+  agent_id: string;
+  timestamp: number;
+  chunk?: string;
+  response?: string;
+  thought?: string;
+  role?: string;
+}
+
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -40,6 +51,7 @@ export class WebSocketService {
   private onConstitutionalUpdateHandler: ((status: ConstitutionalUpdate) => void) | null = null;
   private onAgentUpdateHandler: ((update: AgentUpdate) => void) | null = null;
   private onMessageHandler: ((message: WebSocketMessage) => void) | null = null;
+  private onAgentEventHandler: ((event: AgentEvent) => void) | null = null;
 
   constructor() {
     this.clientId = this.generateClientId();
@@ -159,6 +171,13 @@ export class WebSocketService {
         }
         break;
 
+      case 'agent_event':
+        // Handle agent events (streaming, thinking, completion)
+        if (this.onAgentEventHandler) {
+          this.onAgentEventHandler(message as unknown as AgentEvent);
+        }
+        break;
+
       case 'subscription_confirmed':
         console.log(`Subscribed to: ${message.data?.subscription}`);
         break;
@@ -220,6 +239,13 @@ export class WebSocketService {
    */
   public onMessage(handler: (message: WebSocketMessage) => void): void {
     this.onMessageHandler = handler;
+  }
+
+  /**
+   * Set agent event handler for streaming responses
+   */
+  public onAgentEvent(handler: (event: AgentEvent) => void): void {
+    this.onAgentEventHandler = handler;
   }
 
   /**

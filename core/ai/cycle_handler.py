@@ -6,6 +6,7 @@ in the TrippleEffect framework.
 """
 
 import time
+from typing import Optional
 
 from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
@@ -15,6 +16,7 @@ from core.ai.interaction_handler import InteractionHandler
 from core.ai.workflow_manager import WorkflowManager
 from core.ai.guardian import ConstitutionalGuardian
 from core.ai.prompt_assembler import PromptAssembler
+from core.ai.events import EventEmitter, AgentEvent, EventType, ResponseCollector
 
 class AgentCycleHandler:
     """
@@ -25,13 +27,17 @@ class AgentCycleHandler:
     def __init__(self, settings: HAINetSettings,
                  interaction_handler: InteractionHandler,
                  workflow_manager: WorkflowManager,
-                 guardian: ConstitutionalGuardian):
+                 guardian: ConstitutionalGuardian,
+                 event_emitter: Optional[EventEmitter] = None,
+                 response_collector: Optional[ResponseCollector] = None):
         self.settings = settings
         self.logger = get_logger("ai.cycle_handler", settings)
         self.interaction_handler = interaction_handler
         self.workflow_manager = workflow_manager
         self.guardian = guardian
         self.prompt_assembler = PromptAssembler(settings)
+        self.event_emitter = event_emitter
+        self.response_collector = response_collector
 
     async def run_cycle(self, agent: Agent):
         """
@@ -47,19 +53,61 @@ class AgentCycleHandler:
             self.logger.debug_agent(f"Starting cycle for agent {agent.agent_id} (role={agent.role.value}, state={agent.current_state.value})", function="run_cycle")
             messages_for_llm = self.prompt_assembler.prepare_llm_call_data(agent)
 
-            # 2. Set agent state to PROCESSING
+            # 2. Emit agent thinking event
+            if self.event_emitter:
+                await self.event_emitter.emit(AgentEvent(
+                    event_type=EventType.AGENT_THINKING,
+                    agent_id=agent.agent_id,
+                    timestamp=time.time(),
+                    data={
+                        "role": agent.role.value,
+                        "state": agent.current_state.value,
+                        "message": "Processing your request..."
+                    },
+                    user_did=agent.user_did
+                ))
+
+            # 3. Set agent state to PROCESSING
             await self.workflow_manager.change_agent_state(agent, AgentState.PROCESSING)
 
-            # 3. Process events from the agent's generator
+            # 4. Process events from the agent's generator
             start_time = time.time()
             reschedule = False
+            accumulated_response = ""
 
             async for event in agent.process_message(messages_for_llm):
                 event_type = event.get("type")
 
                 if event_type == "agent_thought":
                     self.logger.debug_agent(f"[{agent.agent_id}] Thought: {event.get('content')}", function="run_cycle")
-                    # In a real system, this would be logged to a DB for observability.
+                    
+                    # Emit thought event for transparency
+                    if self.event_emitter:
+                        await self.event_emitter.emit(AgentEvent(
+                            event_type=EventType.AGENT_THINKING,
+                            agent_id=agent.agent_id,
+                            timestamp=time.time(),
+                            data={"thought": event.get('content', '')},
+                            user_did=agent.user_did
+                        ))
+                
+                elif event_type == "response_chunk":
+                    chunk = event.get("content", "")
+                    accumulated_response += chunk
+                    
+                    # Emit chunk event for real-time streaming
+                    if self.event_emitter:
+                        await self.event_emitter.emit(AgentEvent(
+                            event_type=EventType.RESPONSE_CHUNK,
+                            agent_id=agent.agent_id,
+                            timestamp=time.time(),
+                            data={"chunk": chunk},
+                            user_did=agent.user_did
+                        ))
+                    
+                    # Also add to response collector for streaming display
+                    if self.response_collector:
+                        await self.response_collector.add_chunk(agent.agent_id, chunk)
 
                 elif event_type == "tool_requests":
                     tool_calls = event.get("calls", [])
@@ -138,6 +186,7 @@ class AgentCycleHandler:
 
                 elif event_type == "final_response":
                     content = event.get("content", "")
+                    accumulated_response = content
 
                     # In a real system, the guardian would be more deeply integrated.
                     # For now, we log and proceed.
@@ -145,6 +194,23 @@ class AgentCycleHandler:
                     self.logger.debug_agent(f"[{agent.agent_id}] Final response generated (length={len(content)} chars)", function="run_cycle")
 
                     agent.message_history.append(LLMMessage(role="assistant", content=content, timestamp=time.time()))
+                    
+                    # Emit response complete event
+                    if self.event_emitter:
+                        await self.event_emitter.emit(AgentEvent(
+                            event_type=EventType.RESPONSE_COMPLETE,
+                            agent_id=agent.agent_id,
+                            timestamp=time.time(),
+                            data={
+                                "response": content,
+                                "role": agent.role.value
+                            },
+                            user_did=agent.user_did
+                        ))
+                    
+                    # Notify response collector
+                    if self.response_collector:
+                        await self.response_collector.complete_response(agent.agent_id, content)
                     
                     # Check for automatic state transitions based on agent state
                     await self._check_auto_transitions(agent)

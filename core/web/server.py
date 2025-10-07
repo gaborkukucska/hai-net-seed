@@ -24,6 +24,7 @@ from core.config.settings import HAINetSettings
 from core.logging.logger import get_logger
 from core.identity.did import ConstitutionalViolationError
 from core.ai import LLMManager, AgentManager, ConstitutionalGuardian, MemoryManager
+from core.ai.events import EventEmitter, AgentEvent, EventType
 from core.storage import DatabaseManager, VectorStore
 from core.network import LocalDiscovery, P2PManager, NetworkEncryption
 from core.network.llm_discovery import create_llm_discovery_service
@@ -190,45 +191,60 @@ class WebServer:
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
         
-        # AI Chat interface
+        # AI Chat interface - Routes to Agent System
         @self.app.post("/api/chat")
         async def chat_with_ai(request: Dict[str, Any]):
-            """Chat with constitutional AI"""
-            if not self.llm_manager:
-                raise HTTPException(status_code=503, detail="LLM manager not available")
+            """Chat with constitutional AI via Admin Agent"""
+            if not self.agent_manager:
+                raise HTTPException(status_code=503, detail="Agent manager not available")
             
             try:
-                from core.ai.llm import LLMMessage
-                
                 messages_data = request.get("messages", [])
-                model = request.get("model", "")
-                user_did = request.get("user_did")
+                user_did = request.get("user_did", "did:hai:web_user")
                 
-                # Convert to LLM messages
-                messages = []
-                for msg_data in messages_data:
-                    messages.append(LLMMessage(
-                        role=msg_data.get("role", "user"),
-                        content=msg_data.get("content", ""),
-                        timestamp=time.time()
-                    ))
+                # Extract the latest user message
+                user_message = ""
+                if messages_data:
+                    # Get the last user message
+                    for msg in reversed(messages_data):
+                        if msg.get("role") == "user":
+                            user_message = msg.get("content", "")
+                            break
                 
-                # Generate response with constitutional compliance
-                response = await self.llm_manager.generate_response(
-                    messages=messages,
-                    model=model,
-                    user_did=user_did
+                if not user_message:
+                    raise HTTPException(status_code=400, detail="No user message provided")
+                
+                self.logger.debug(f"Routing chat message to Admin AI: {user_message[:50]}...", category="web", function="chat_with_ai")
+                
+                # Route to Agent Manager (Admin AI)
+                # Note: The agent will process this asynchronously and send response via WebSocket
+                # For now, we'll also try to get a direct response for backwards compatibility
+                response_text = await self.agent_manager.handle_user_message(
+                    user_message, 
+                    user_did
                 )
                 
-                return {
-                    "response": response.content,
-                    "model": response.model,
-                    "constitutional_compliant": response.constitutional_compliant,
-                    "privacy_protected": response.privacy_protected,
-                    "timestamp": response.timestamp
-                }
+                # If we got a response, return it
+                if response_text:
+                    return {
+                        "response": response_text,
+                        "model": "admin_agent",
+                        "constitutional_compliant": True,
+                        "privacy_protected": True,
+                        "timestamp": time.time()
+                    }
+                else:
+                    # Agent is processing, return acknowledgment
+                    return {
+                        "response": "I've received your message and I'm processing it. You'll see my response shortly.",
+                        "model": "admin_agent",
+                        "constitutional_compliant": True,
+                        "privacy_protected": True,
+                        "timestamp": time.time()
+                    }
                 
             except Exception as e:
+                self.logger.error(f"Chat API error: {e}", category="web", function="chat_with_ai")
                 raise HTTPException(status_code=400, detail=str(e))
         
         # Network status
@@ -395,6 +411,21 @@ class WebServer:
                 "subscription": "constitutional_updates"
             })
     
+    async def _on_agent_event(self, event: AgentEvent):
+        """Handle agent events and broadcast via WebSocket"""
+        try:
+            # Convert event to WebSocket message
+            ws_message = event.to_websocket_message()
+            
+            # Broadcast to all connected clients
+            await self.broadcast_websocket_message(ws_message)
+            
+            # Log event broadcasting
+            self.logger.debug(f"Broadcasted agent event: {event.event_type.value}", category="websocket", function="_on_agent_event")
+            
+        except Exception as e:
+            self.logger.error(f"Error broadcasting agent event: {e}", category="websocket", function="_on_agent_event")
+    
     async def _send_websocket_message(self, client_id: str, message: Dict[str, Any]):
         """Send message to WebSocket client"""
         if client_id in self.websocket_connections:
@@ -434,6 +465,16 @@ class WebServer:
         self.memory_manager = memory_manager
         self.database_manager = database_manager
         self.vector_store = vector_store
+        
+        # Subscribe to agent events for WebSocket broadcasting
+        self.logger.debug(f"Checking event subscription: agent_manager={agent_manager is not None}, has_event_emitter={hasattr(agent_manager, 'event_emitter') if agent_manager else False}", category="web", function="inject_dependencies")
+        
+        if agent_manager and hasattr(agent_manager, 'event_emitter'):
+            self.logger.debug(f"Event emitter found: {agent_manager.event_emitter}", category="web", function="inject_dependencies")
+            agent_manager.event_emitter.subscribe_all(self._on_agent_event)
+            self.logger.info("Subscribed to agent events for WebSocket broadcasting", category="web", function="inject_dependencies")
+        else:
+            self.logger.warning(f"Cannot subscribe to agent events - agent_manager: {agent_manager is not None}, has_emitter: {hasattr(agent_manager, 'event_emitter') if agent_manager else False}", category="web", function="inject_dependencies")
         
         self.logger.log_decentralization_event(
             "web_server_dependencies_injected",

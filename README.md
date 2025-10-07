@@ -27,22 +27,26 @@ HAI-Net is built on **four immutable constitutional principles**:
 
 ## 🚀 Current Status
 
-### 🟡 **Phase 1 In Progress: Core Agent Workflow Functional**
+### � **Phase 1 Nearly Complete: Core Agent Workflow + Real-Time Streaming**
 
-The foundational, event-driven agent workflow is now implemented and tested. This provides a stable base for building out the full feature set.
+The foundational, event-driven agent workflow is now implemented and tested, with real-time streaming capabilities fully operational. This provides a robust base for building out the full feature set.
 
 **Key Accomplishments:**
 - **Automated Agent Hierarchy:** Implemented the full Admin -> PM -> Worker delegation workflow.
-- **Event-Driven Architecture:** The core components (`AgentManager`, `AgentCycleHandler`, `WorkflowManager`) are functional and orchestrate agent actions.
+- **Event-Driven Architecture:** The core components (`AgentManager`, `AgentCycleHandler`, `WorkflowManager`, `EventEmitter`, `ResponseCollector`) are functional and orchestrate agent actions with real-time event streaming.
 - **State Machine:** Agents now correctly transition through states (`PLANNING`, `STARTUP`, `BUILD_TEAM_TASKS`, `WORK`, etc.) as part of the automated workflow.
-- **End-to-End Integration Test:** A new test (`tests/test_automated_workflow.py`) validates the entire delegation process.
+- **Real-Time Streaming:** WebSocket-based streaming delivers LLM responses chunk-by-chunk to the UI for immediate user feedback.
+- **Chat State Persistence:** localStorage-based persistence ensures chat history survives page navigation.
+- **Tool Parsing:** XML tool calls are automatically stripped from responses for clean user display.
+- **End-to-End Integration Test:** A comprehensive test (`tests/test_automated_workflow.py`) validates the entire delegation process.
 
 **Component Status:**
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| 🤖 **AI Agent System** | ✅ Functional | The core automated workflow (Admin -> PM -> Worker) is operational. |
-| 💬 **Chat Interface** | ✅ Functional | Audio-visual chat interface with Admin AI, voice features ready. |
+| 🤖 **AI Agent System** | ✅ Functional | The core automated workflow (Admin -> PM -> Worker) is operational with event streaming. |
+| 💬 **Chat Interface** | ✅ Functional | Audio-visual chat interface with real-time streaming, localStorage persistence, voice features ready. |
+| 🎯 **Event System** | ✅ Functional | EventEmitter and ResponseCollector enable real-time streaming and async response handling. |
 | 🧪 **Testing Framework**| ✅ Functional | A robust testing framework with a mock LLM and an end-to-end workflow test is in place. |
 | ⚙️ **Configuration** | ✅ Functional | Pydantic-based settings management is working. |
 | 📊 **Logging System** | ✅ Functional | Constitutional logger is integrated. |
@@ -148,12 +152,18 @@ The `./launch.sh` script provides multiple launch modes:
 
 ### **🌐 Web Interface Access**
 After launching, access HAI-Net at:
-- **Chat Interface**: http://localhost:8080/chat (Audio-visual Admin AI chat - **NEW!**)
+- **Chat Interface**: http://localhost:8080/chat (Audio-visual Admin AI chat with **real-time streaming**)
 - **Network Visualization**: http://localhost:8080/network (WebGPU accelerated)
 - **Activity Feed**: http://localhost:8080/feed (Real-time AI activity)
 - **Logs**: http://localhost:8080/logs (System logs and audit trail)
 - **Settings**: http://localhost:8080/settings (Constitutional settings)
 - **API Documentation**: http://localhost:8000/docs
+
+**Chat Features:**
+- 🔴 **Real-Time Streaming**: See AI responses as they're generated, chunk by chunk
+- 💾 **Persistent History**: Chat conversations survive page navigation via localStorage
+- 🔧 **Tool Execution**: Visual feedback when AI agents execute tools
+- 🎯 **Clean Responses**: Automatic filtering of technical XML from user-facing messages
 
 ### **🔧 Manual Installation (Advanced Users)**
 
@@ -229,7 +239,7 @@ print(f"Your HAI-Net DID: {identity['did']}")
 ### **✅ Completed: Phase 0 - Foundation (Weeks 1-4)**
 - ✅ Core infrastructure and class structure established.
 
-### **📍 Current: Phase 1 - Core Workflow Implementation (In Progress)**
+### **📍 Current: Phase 1 - Core Workflow Implementation (Nearly Complete)**
 - **✅ COMPLETE**: Implemented the full, event-driven, automated agent workflow.
   - ✅ Admin agent can create a plan, which automatically spawns a PM agent.
   - ✅ PM agent can break down the plan into tasks.
@@ -238,12 +248,19 @@ print(f"Your HAI-Net DID: {identity['did']}")
   - ✅ Worker agents can receive and execute tasks.
   - ✅ Added a comprehensive integration test (`test_automated_workflow.py`) to validate the entire flow.
   - ✅ Fixed critical frontend build issue by correcting the `web/public` directory structure.
+  
+- **✅ COMPLETE**: Real-time streaming and user experience improvements.
+  - ✅ **Event System** (`core/ai/events.py`): EventEmitter pub/sub system with ResponseCollector for async responses.
+  - ✅ **WebSocket Streaming**: Chunk-by-chunk LLM response delivery to frontend via WebSocket events.
+  - ✅ **Chat State Persistence**: localStorage-based chat history that survives page navigation.
+  - ✅ **Tool Parsing**: Automatic stripping of XML tool calls from user-facing responses.
+  - ✅ **UI Integration**: ChatPage fully integrated with WebSocket service for real-time agent events.
 
 **Next (Phase 1 Continued)**:
-- [ ] **PRIORITY**: Fully integrate the frontend with the backend. Fix the UI build process and connect it to the agent system via WebSockets.
 - [ ] **NEXT**: Integrate the `ConstitutionalGuardian` into the agent cycle to monitor all communications.
 - [ ] Enhance the `MemoryManager` and integrate it with agents to provide long-term memory.
 - [ ] Implement the P2P networking components to allow agents to discover each other.
+- [ ] Add voice services integration (Whisper STT, Coqui TTS) to chat interface.
 
 ### **🚀 Next Phases**
 - **Phase 2**: Alpha with advanced AI workflows, voice services (Whisper/Piper), multi-hub mesh networking
@@ -267,7 +284,9 @@ The system uses a three-tier agent hierarchy:
 ```
 
 ### Event-Driven Execution
-Agents operate asynchronously. Instead of executing tasks directly, an agent's `process_message` method yields a series of **events** (e.g., `tool_requests`, `final_response`). A central `AgentCycleHandler` consumes these events and orchestrates the corresponding actions, such as calling a tool or changing an agent's state. This decoupled design provides robustness and observability.
+Agents operate asynchronously. Instead of executing tasks directly, an agent's `process_message` method yields a series of **events** (e.g., `tool_requests`, `final_response`, `response_chunk`). A central `AgentCycleHandler` consumes these events and orchestrates the corresponding actions, such as calling a tool or changing an agent's state. This decoupled design provides robustness and observability.
+
+**Real-Time Streaming**: The `EventEmitter` system broadcasts agent events to all connected clients via WebSocket, enabling real-time UI updates as LLM responses are generated. The `ResponseCollector` manages async response futures for synchronous HTTP endpoints while simultaneously streaming chunks to WebSocket clients.
 
 ### Agent States
 Agents operate on a detailed state machine, allowing for complex workflows. Key states include:
