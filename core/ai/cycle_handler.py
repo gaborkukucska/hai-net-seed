@@ -83,16 +83,7 @@ class AgentCycleHandler:
 
                 if event_type == "agent_thought":
                     self.logger.debug_agent(f"[{agent.agent_id}] Thought: {event.get('content')}", function="run_cycle")
-                    
-                    # Emit thought event for transparency
-                    if self.event_emitter:
-                        await self.event_emitter.emit(AgentEvent(
-                            event_type=EventType.AGENT_THINKING,
-                            agent_id=agent.agent_id,
-                            timestamp=time.time(),
-                            data={"thought": event.get('content', '')},
-                            user_did=agent.user_did
-                        ))
+                    # Don't emit another AGENT_THINKING event here - we already emitted one at the start of the cycle
                 
                 elif event_type == "response_chunk":
                     chunk = event.get("content", "")

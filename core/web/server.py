@@ -414,6 +414,18 @@ class WebServer:
     async def _on_agent_event(self, event: AgentEvent):
         """Handle agent events and broadcast via WebSocket"""
         try:
+            # FILTER: Only broadcast events from Admin agent to users
+            # Internal agents (PM, Workers) should not have their events shown to users
+            agent_id = event.agent_id
+            
+            # Check if this is an Admin agent (agent_admin_*)
+            is_admin_agent = agent_id and 'admin' in agent_id.lower()
+            
+            # Only broadcast Admin agent events to users
+            if not is_admin_agent:
+                self.logger.debug(f"Filtered out non-admin agent event: {event.event_type.value} from {agent_id}", category="websocket", function="_on_agent_event")
+                return
+            
             # Convert event to WebSocket message
             ws_message = event.to_websocket_message()
             
@@ -421,7 +433,7 @@ class WebServer:
             await self.broadcast_websocket_message(ws_message)
             
             # Log event broadcasting
-            self.logger.debug(f"Broadcasted agent event: {event.event_type.value}", category="websocket", function="_on_agent_event")
+            self.logger.debug(f"Broadcasted admin agent event: {event.event_type.value}", category="websocket", function="_on_agent_event")
             
         except Exception as e:
             self.logger.error(f"Error broadcasting agent event: {e}", category="websocket", function="_on_agent_event")

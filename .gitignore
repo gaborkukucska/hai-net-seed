@@ -227,6 +227,8 @@ temp/
 # React build files
 web/build/
 web/dist/
+web/static/
+web/node_modules/
 
 # =============================================================================
 # HAI-Net Specific

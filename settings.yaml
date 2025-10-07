@@ -64,7 +64,7 @@ constitutional:
 
 ai:
   backend: "ollama"              # ollama, llama.cpp, vllm
-  default_model: "llama2:7b"     # Default language model
+  default_model: "gemma3:4b-it-q4_K_M"     # Default language model (fast and reliable)
   voice_enabled: true           # Enable speech-to-text/text-to-speech
   
 resources:

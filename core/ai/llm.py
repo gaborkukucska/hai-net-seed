@@ -321,6 +321,60 @@ class OllamaProvider:
         except Exception:
             return False
     
+    def _rank_model_preference(self, model_name: str) -> int:
+        """
+        Rank model by preference (higher score = more preferred).
+        Prioritizes fast, small, quantized models for better user experience.
+        
+        Args:
+            model_name: Model name to rank
+            
+        Returns:
+            Preference score (higher is better)
+        """
+        score = 100  # Base score
+        model_lower = model_name.lower()
+        
+        # Strongly prefer small parameter counts (faster, less resource intensive)
+        if "1b" in model_lower or "1.5b" in model_lower:
+            score += 40  # Very small models
+        elif "4b" in model_lower or "3b" in model_lower:
+            score += 35  # Small models (sweet spot for speed/quality)
+        elif "7b" in model_lower:
+            score += 25  # Medium-small models
+        elif "8b" in model_lower:
+            score += 20  # Medium models
+        elif "14b" in model_lower or "12b" in model_lower:
+            score += 10  # Larger models
+        elif "20b" in model_lower or "30b" in model_lower:
+            score -= 20  # Very large models (slow)
+        
+        # Prefer quantized models (faster inference)
+        if "q4" in model_lower or "q5" in model_lower:
+            score += 15  # Well-quantized models
+        elif "q3" in model_lower:
+            score += 10  # More aggressive quantization
+        elif "q8" in model_lower:
+            score += 5   # Less quantization but still optimized
+        
+        # Prefer instruction-tuned models
+        if "it" in model_lower or "instruct" in model_lower:
+            score += 10
+        
+        # Prefer known fast model families
+        if "gemma" in model_lower:
+            score += 15  # Gemma models are known to be fast and efficient
+        elif "phi" in model_lower:
+            score += 12  # Phi models are also efficient
+        elif "granite" in model_lower:
+            score += 8   # Granite models are reasonably fast
+        
+        # Deprioritize very slow models
+        if "mistral-small" in model_lower:
+            score -= 30  # Known to be slow
+        
+        return score
+    
     async def _load_available_models(self):
         """Load list of available Ollama models"""
         try:
@@ -349,7 +403,20 @@ class OllamaProvider:
                         )
                         self.available_models.append(model_info)
                     
+                    # Sort models by preference (best first)
+                    self.available_models.sort(
+                        key=lambda m: self._rank_model_preference(m.name),
+                        reverse=True
+                    )
+                    
                     self.logger.info(f"Loaded {len(self.available_models)} Ollama text generation models", category="ai", function="_load_available_models")
+                    
+                    # Log the top 3 preferred models
+                    if self.available_models:
+                        self.logger.info(f"Preferred models (by ranking):", category="ai", function="_load_available_models")
+                        for i, model in enumerate(self.available_models[:3]):
+                            rank_score = self._rank_model_preference(model.name)
+                            self.logger.info(f"  {i+1}. {model.name} (score: {rank_score})", category="ai", function="_load_available_models")
                     
         except Exception as e:
             self.logger.error(f"Failed to load Ollama models: {e}", category="ai", function="_load_available_models")
