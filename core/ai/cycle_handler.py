@@ -171,6 +171,10 @@ class AgentCycleHandler:
                                     "role": agent.role.value
                                 }
                             )
+                        
+                        # Automatically reschedule agent to continue processing in new state
+                        await agent.manager.schedule_cycle(agent.agent_id)
+                        self.logger.debug_agent(f"[{agent.agent_id}] Rescheduled to continue in {new_state.value} state", function="run_cycle")
                     break
 
                 elif event_type == "plan_created":

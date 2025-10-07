@@ -219,9 +219,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({ apiService, websocketService
       }
     });
 
-    // Cleanup on unmount
+    // Cleanup on unmount - don't disconnect WebSocket as it's managed at App level
     return () => {
-      websocketService.disconnect();
+      // WebSocket cleanup is handled by App.tsx
     };
   }, [websocketService]);
 
