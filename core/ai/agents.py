@@ -22,6 +22,7 @@ from .events import EventEmitter, ResponseCollector, create_event_emitter
 if TYPE_CHECKING:
     from .cycle_handler import AgentCycleHandler
     from .workflow_manager import WorkflowManager
+    from .memory import MemoryManager
 
 class AgentState(Enum):
     """
@@ -711,13 +712,13 @@ class AgentManager:
             # Schedule the agent cycle
             await self.schedule_cycle(admin_agent.agent_id)
             
-            # Wait for response (30 second timeout)
-            response = await self.response_collector.wait_for_response(admin_agent.agent_id, timeout=30.0)
+            # Wait for response (60 second timeout - increased for complex requests)
+            response = await self.response_collector.wait_for_response(admin_agent.agent_id, timeout=60.0)
             
             if response:
                 return response
             else:
-                self.logger.warning(f"Timeout waiting for response from {admin_agent.agent_id}")
+                self.logger.error(f"Timeout waiting for response from {admin_agent.agent_id}. Check cycle_handler and LLM logs for issues.")
                 return "I apologize, but I'm taking longer than expected to process your request. Please try again."
         
         return None

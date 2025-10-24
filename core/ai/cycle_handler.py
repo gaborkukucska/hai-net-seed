@@ -173,31 +173,51 @@ class AgentCycleHandler:
                     plan = event.get("plan", {})
                     self.logger.info(f"[{agent.agent_id}] Plan created: {plan.get('project_name', 'Unnamed')}", category="agent", function="run_cycle")
                     
-                    # Store plan in agent's memory for workflow manager
+                    # CRITICAL FIX: Send the ACTUAL plan content to the user
+                    # The accumulated_response contains the full LLM-generated plan that was streamed
+                    # Only use ResponseCollector to complete the response (chunks were already streamed via EventEmitter)
+                    
+                    # Store the actual plan content in agent's message history
                     agent.message_history.append(LLMMessage(
                         role="assistant",
-                        content=f"Plan created: {plan}",
+                        content=accumulated_response,
                         timestamp=time.time()
                     ))
+                    
+                    # Complete the response for ResponseCollector (HTTP endpoint waiting for response)
+                    # DO NOT emit RESPONSE_COMPLETE via EventEmitter - chunks were already streamed
+                    if self.response_collector:
+                        await self.response_collector.complete_response(agent.agent_id, accumulated_response)
+                    
+                    self.logger.debug_agent(f"[{agent.agent_id}] Sent plan content to user ({len(accumulated_response)} chars)", function="run_cycle")
                     
                     # Store plan creation in episodic memory with HIGH importance
                     if self.memory_manager:
                         await self.memory_manager.store_memory(
                             agent_id=agent.agent_id,
-                            content=f"Created project plan: {plan.get('project_name', 'Unnamed')}",
+                            content=f"Created project plan: {plan.get('project_name', 'Unnamed')}. Plan content: {accumulated_response[:500]}",
                             memory_type=MemoryType.EPISODIC,
                             importance=MemoryImportance.HIGH,
                             metadata={
                                 "event": "plan_created",
                                 "project_name": plan.get('project_name', 'Unnamed'),
                                 "plan_details": str(plan)[:1000],
-                                "role": agent.role.value
+                                "role": agent.role.value,
+                                "plan_content_length": len(accumulated_response)
                             }
                         )
                     
-                    # Trigger workflow processing
+                    # NOW trigger the PM creation workflow asynchronously
+                    # The workflow manager will handle PM creation in the background
                     await self.workflow_manager.process_plan_creation(agent, plan)
-                    break
+                    
+                    # CRITICAL: Admin agent must return to IDLE state so it can handle the next user request
+                    # Without this, the Admin gets stuck in PROCESSING and times out on follow-up messages
+                    await self.workflow_manager.change_agent_state(agent, AgentState.IDLE)
+                    self.logger.debug_agent(f"[{agent.agent_id}] Transitioned to IDLE after plan creation", function="run_cycle")
+                    
+                    # Return early - we've completed the cycle and transitioned to IDLE
+                    return
                 
                 elif event_type == "task_list_created":
                     # PM created task list

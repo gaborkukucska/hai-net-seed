@@ -7,6 +7,7 @@ from .llm import LLMManager, LLMResponse
 from .agents import AgentManager, Agent, AgentState
 from .guardian import ConstitutionalGuardian
 from .memory import MemoryManager
+from .events import EventEmitter, AgentEvent, EventType, ResponseCollector
 
 __all__ = [
     "LLMManager",
@@ -15,5 +16,9 @@ __all__ = [
     "Agent",
     "AgentState",
     "ConstitutionalGuardian",
-    "MemoryManager"
+    "MemoryManager",
+    "EventEmitter",
+    "AgentEvent",
+    "EventType",
+    "ResponseCollector"
 ]
